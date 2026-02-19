@@ -1,1 +1,1 @@
-# colsensus.github.io
+# africanproverbs.github.io
