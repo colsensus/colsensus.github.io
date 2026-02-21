@@ -1,1 +1,0 @@
-# africanproverbs.github.io
