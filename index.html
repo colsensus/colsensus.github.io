@@ -521,7 +521,8 @@ this.loadIndicator.setAttribute('slot', 'hidden');
 async loadFeed(source) {
 await customElements.whenDefined('app-activity');
 const url = `https://www.reddit.com/r/${source}.json?limit=${this.feed_limit}`;
-const res = await fetch(url, { mode: 'cors', cache: 'no-store' });
+//const res = await fetch(url, { mode: 'cors', cache: 'no-store' });
+const res = await fetch(url);
 return res.json();
 }
 
@@ -989,7 +990,6 @@ if(ctx.match('/index.html') || ctx.match('/')) startIndex = 'main';
 if(ctx.endsWith('/') && ctx !== '/') startIndex = ctx.pathname.split('/')[1];
 const main = getActivity(startIndex);
 setState(main, { state : 'open'});
-await loadRedditFeed(main);
 if(ctx.endsWith('?cmd=uninstall')) uninstallPWA();
 };
 
