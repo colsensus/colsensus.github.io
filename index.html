@@ -291,22 +291,6 @@ return instance;
 
 
 
-class TaskRunner extends baseComponent {
-config() {
-this.layout =this.getAttribute('loader')
-|| 'basic-loader';
-this.callback = this.getAttribute('callback');
-}
-init() {
-this.setAttribute('layout', this.layout);
-//this.runTask();
-}
-
-runTask() {
-window[this.callback]?.();
-setTimeout(this.remove(), 25000);
-}
-}
 class MediaView extends baseComponent {
 config() {
 this.layout = 'view';
@@ -436,15 +420,12 @@ class extends ListItem {});
 customElements.define('media-view',
 class extends MediaView {});
 
-customElements.define('use-effect', 
-class extends TaskRunner {});
-
 customElements.define('app-activity', 
 class extends Activity {});
-class RedditClient extends Activity {
+class RedditClient extends baseComponent {
 
 config() {
-this.feed = this.getAttribute('default-url');
+this.feed = this.getAttribute('default-url') || 'reddit';
 this.feed_limit = 100;
 this.feedData = [];
 this.currentIndex = 0;
@@ -453,16 +434,16 @@ this.loadingAnimation = 'Spin-Load-Indicator';
 this.loading = false;
 this.lastScrollPos = 0;
 this.scrollThreshold = 10;
-this.trendTabNav = document.createElement('button');
-this.latestTabNav = document.createElement('button');
-this.loadIndicator = document.createElement('div-container');
-this.contentTitle = document.createElement('h3');
 }
 
 init() {
 this.setAttribute('layout',
 this.layout);
 this.style.display='contents';
+this.trendTabNav = document.createElement('button');
+this.latestTabNav = document.createElement('button');
+this.loadIndicator = document.createElement('div-container');
+this.contentTitle = document.createElement('h3');
  this.initialLoad();
 }
 
@@ -474,7 +455,10 @@ if(!part) return;
 if( part === 'List-Layout') {
 const currentScroll=e.target.scrollTop;
 const prevScroll = this.lastScrollPos;
-if(currentScroll > prevScroll) this.loadFeedsList();
+if(currentScroll > prevScroll)  {
+  this.loadFeedsList(); 
+this.contentTitle.slot = 'hidden';
+} else this.contentTitle.slot= 'content:head';
 this.lastScrollPos = currentScroll;
 }});
 
@@ -485,14 +469,14 @@ this.resetFeed();
 this.trendTabNav.setAttribute('slot', 'footer:tab');
 this.latestTabNav.setAttribute('slot', 'footer:tab');
 this.contentTitle.setAttribute('slot', 'content:head');
-this.loadIndicator.setAttribute('slot', 'load:state');
+this.loadIndicator.setAttribute('slot', 'overlay');
 this.loadIndicator.setAttribute('layout', this.loadingAnimation);
 
 setIcon(this.trendTabNav, 'r_trends');
 setIcon(this.latestTabNav, 'r_feeds');
 
-setText(this.trendTabNav, 'trending_tab_label');
-setText(this.latestTabNav, 'feed_tab_label');
+setText(this.trendTabNav, 'r_trending_tab_label');
+setText(this.latestTabNav, 'r_feed_tab_label');
 
 this.trendTabNav.onclick = () =>  {
   this.trendTabNav.classList.add('active');
@@ -500,36 +484,44 @@ this.trendTabNav.onclick = () =>  {
   this.trendTabNav.disabled = true;
   this.latestTabNav.disabled = false;
   this.showFeed('hot');
-}
+};
 this.latestTabNav.onclick = () => {
     this.trendTabNav.classList.remove('active');
   this.latestTabNav.classList.add('active');
   this.trendTabNav.disabled = false;
   this.latestTabNav.disabled = true;
   this.showFeed('new');
-}
+};
 
 this.parentNode.appendChild(this.latestTabNav);
 this.parentNode.appendChild(this.trendTabNav);
 this.parentNode.appendChild(this.loadIndicator);
 this.parentNode.appendChild(this.contentTitle);
-this.latestTabNav.click();
+const ctx = window.location.pathname;
+if(ctx.endsWith('postview/')) {
+  openPage('postview');
+const preView=getActivity('postview');
+this.viewPost(preView.getAttribute('post-index'));
+} else this.latestTabNav.click();
 }
 
 async showFeed(tInd) {
 this.resetFeed();
-if(tInd === 'new')   setText(this.contentTitle, 'feed_tab_label');
-if(tInd === 'hot') setText(this.contentTitle, 'trending_tab_label');
+if(tInd === 'new')   setText(this.contentTitle, 'r_feed_tab_label');
+if(tInd === 'hot') setText(this.contentTitle, 'r_trending_tab_label');
 this.loadIndicator.setAttribute('layout', this.loadingAnimation);
+this.loadIndicator.setAttribute('slot', 'overlay');
 const json =await this.loadFeed(`${this.feed}/${tInd}`);
 this.setFeedData(json);
 this.loadFeedsList();
 this.loadIndicator.setAttribute('layout', 'view');
+this.loadIndicator.setAttribute('slot', 'hidden');
 }
 
 async loadFeed(source) {
+await customElements.whenDefined('app-activity');
 const url = `https://www.reddit.com/r/${source}.json?limit=${this.feed_limit}`;
-const res = await fetch(url);
+const res = await fetch(url, { mode: 'cors', cache: 'no-store' });
 return res.json();
 }
 
@@ -553,8 +545,9 @@ this.renderPost(post);
 
 this.currentIndex = end;
 this.loading = false;
-setTimeout(this.loadIndicator.setAttribute('layout','view'),3000);
+this.loadIndicator.setAttribute('layout','view');
 }
+
 
 buildPost(post, index) {
 return {
@@ -651,9 +644,6 @@ if (post.url.startsWith('https://preview.reddit')) media.images = post.url.split
 
 if(post.url?.match(/\.(mp4|webm)$/i))
 media.video = post.url;
-
-
-
 return media;
 }
 
@@ -662,25 +652,25 @@ const card = document.createElement('div-card');
 card.dataset.index = post.index;
 if(post.media.image 
 || post.media.video
-|| post.media.gallery) {
+|| post.media.gallery.length) {
 let mediaType;
-const img = new Image();
+const img = document.createElement('img');
+img.setAttribute('slot','card:cover');
 const tag = document.createElement('div-container');
 tag.style.fontSize = '0.5rem';
 tag.style.fontWeight = '700';
+tag.style.backgroundColor = `orange`;
 tag.slot = 'card:bottom';
 tag.setAttribute('layout', 'horizontalBar');
 
-if (post.media.gallery.length) {
+if (post.media.gallery.length > 1) {
 
-img.setAttribute('slot','card:cover');
 img.src = post.media.gallery[0];
 card.appendChild(img);
 mediaType = 'gallery';
 tag.textContent = `${post.media.gallery.length} photos`;
 }
 else if (post.media.image) {
-img.setAttribute('slot','card:cover');
 img.src = post.media.image;
 card.appendChild(img);
 
@@ -690,8 +680,7 @@ setIcon(tag, mediaType);
 card.appendChild(tag);
 }
 
-card.appendChild(Object.assign(document.createElement('p'), { fontWeight : '700', slot : 'card:meta',
-  textContent:post.author }));
+card.appendChild(Object.assign(document.createElement('p'), { fontWeight : '700', slot : 'card:meta', textContent:post.author }));
  
  let comments= `${post.comments_count} comments`;
  const commentCounter = Object.assign(
@@ -718,15 +707,17 @@ card.appendChild(Object.assign(document.createElement('p'),
 
 card.onclick = () => {
 this.viewPost(post.index);
-openPage('postview');
 };
 this.appendChild(card);
 }
 
 async viewPost(index) {
+await customElements.whenDefined('app-activity');
+openPage('postview');
 const post = this.feedData[index];
 const postView=getActivity('postview');
 postView.innerHTML = '';
+postView.setAttribute('post-index', index);
 const postWrapper = document.createElement('div-container');
 postWrapper.setAttribute('layout', this.layout);
 
@@ -749,13 +740,14 @@ textContent : formatTimeAgo(post.created_utc)
 postView.appendChild(Object.assign(document.createElement('h1'), {
 fontWeight : 'bold',
 fontSize : '1.25rem',
+slot : 'content:head',
 textContent : post.title
 }));
 
 
 const media = this.getPostMedia(post);
 
-if (media.gallery.length) {
+if (media.gallery.length > 1 ) {
 media.gallery.forEach((src, index) => {
 const img = document.createElement('img');
 img.style.scrollSnapAlign = 'start';
@@ -790,32 +782,39 @@ postWrapper.appendChild(div);
 
 if (post.selftext) {
 const text=document.createElement('p');
-text.innerHTML += post.selftext;
-text.style.scrollSnapAlign = 'start';
+text.innerHTML = post.selftext;
+//text.style.scrollSnapAlign = 'start';
 postWrapper.appendChild(text);
 }
-
-const commentWrapper = document.createElement('div-container');
-commentWrapper.setAttribute('layout', this.layout);
 
 const comments=await this.getComments(post);
 
 let commentCount;
-if (comments.length <= 1)
-  commentCount = `${post.num_comments} comment`;
-else
-  commentCount = `${post.num_comments} comments`;
+if (comments.length <= 1) commentCount = `${post.num_comments} comment`;
+else commentCount = `${post.num_comments} comments`;
 
-postWrapper.appendChild(
-  Object.assign(document.createElement('h4'),{textContent:commentCount })
-);
+const commentWrapper = document.createElement('div-container');
+commentWrapper.setAttribute('layout', this.layout);
+setIcon(commentWrapper,'comment');
+commentWrapper.appendChild(Object.assign(document.createElement('h3'), { slot : 'label' , textContent : commentCount }));
 
-comments.forEach(c => {
-this.renderCommentNode(c, commentWrapper);
+if(comments.length > 5 ) {
+commentWrapper.setAttribute('layout', 'Bread-Crumb');
+commentWrapper.onclick= ()=> {
+const state = commentWrapper.getAttribute('layout');
+let layout;
+if(state === 'Bread-Crumb') layout = this.layout; else layout = 'Bread-Crumb';
+commentWrapper.setAttribute('layout', layout);
+if(layout === this.layout) commentWrapper.scrollIntoView();
+}}
+comments.forEach(c => { this.renderCommentNode(c,commentWrapper);
 });
- 
 postWrapper.appendChild(commentWrapper);
 postView.appendChild(postWrapper);
+}
+
+onLoadState(state) {
+
 }
 
 resetFeed() {
@@ -1552,10 +1551,12 @@ scroll-snap-type:y mandatory;
   display: grid;
   grid-template-columns: 100%;
   grid-auto-rows:auto;
+  grid-auto-flow:row;
   height: 100%;
   width: 100%;
   justify-content: center;
-  align-content: space-between;
+  align-content:flex-start;
+  align-items:space-between;
 }
 
 ::part(header),
@@ -1586,15 +1587,14 @@ justify-content: space-between;
 ::part(main-content) {
 display:grid;
 justify-content:center;
-align-content:flex-start;
 align-items:flex-start;
 grid-template-columns:95%;
 grid-auto-rows:auto;
+grid-auto-flow:row;
 width:100%;
-max-height:100%;
-flex:0 1 100%;
+height:100%;
 overflow:auto;
-grid-row:span 1fr;
+grid-row: span 1fr;
 }
 
 ::part(footer) {
@@ -1734,14 +1734,14 @@ background:red;
 
 ::part(List-Layout) {
 display:grid;
-justify-content:flex-start;
+justify-content:center;
+align-content:flex-start;
 align-items:flex-start;
 grid-template-columns:100%;
-grid-auto-rows:max-width;
 gap:0.5em;
-height:auto;
-max-height:100%;
 width:100%;
+max-height:100%;
+flex:0 1 auto;
 padding-top:1em;
 padding-bottom:1em;
 overflow-y:scroll;
@@ -1983,6 +1983,13 @@ installing it as an app will add it to your homscreen and enable it load and ope
 
 <string for="@framework_install_defer" en-us="install later"></string>
 
+<string for="r_trending_tab_label" en-us="trending"></string>
+
+<string for="r_feed_tab_label" en-us="feed"></string>
+
+<string for="r_collapse_comments" en-us="collapse"></string>
+
+<string for="info_text" en-us="learn more"></string>
 
 <layout part="button">
   <slot name="icon"></slot>
@@ -1994,7 +2001,6 @@ installing it as an app will add it to your homscreen and enable it load and ope
   <slot name="icon"></slot>
   <slot name="label"></slot>
   <slot name="content"></slot>
-  <slot></slot>
 </layout>
 
 
@@ -2101,6 +2107,12 @@ loading
 <slot name="reply"></slot>
 </layout>
 <layout part="List-Layout">
+<section class="Linear-Layout">
+  <slot name="icon"></slot>
+  <slot name="title"></slot>
+  <slot name="label"></slot>  
+</section>
+
 <slot></slot>
 </layout>
 
@@ -2127,14 +2139,15 @@ loading
 <slot name="popup:title"></slot>
 </section>
 
-<section class="Box">
+<section class="Box" part="List-Layout">
 <slot name="popup:content"></slot>
 </section>
 
 <section class="Linear-Layout">
 <slot name="list:item"></slot>
 </section>
-</layout><layout part="main-layout" class="Stack-Layout">
+</layout>
+<layout part="main-layout" class="Stack-Layout">
 <slot name="view" class="Column-Layout"></slot>
 <slot name="modal" class="Column-Layout"></slot>
 </layout>
@@ -2185,11 +2198,6 @@ not available
 <string for="feed_url" value="kenya"></string>
 
 <string for="wa_link" value="https://whatsapp.com/channel/0029Vay9qQm0wajlyNvoaV0d"></string>
-<string for="trending_tab_label" en-us="trending"></string>
-
-<string for="feed_tab_label" en-us="feed"></string>
-
-<string for="info_text" en-us="learn more"></string>
 
 <string for="action_join_url" en-us="join our whatsapp community"></string>
 
