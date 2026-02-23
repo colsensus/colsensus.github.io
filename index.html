@@ -579,6 +579,7 @@ text.slot = 'comment';
 
   comment.appendChild(author);
   comment.appendChild(text);
+  if(parentContainer.getAttribute('layout')=== 'Post-Comment') comment.setAttribute('slot', 'reply');
   parentContainer.appendChild(comment);
 const replies = commentData.data.replies?.data?.children;
 
@@ -586,7 +587,8 @@ if (Array.isArray(replies) && replies.length) {
 replies.forEach(reply => {
 if (!reply.data?.body) return;
 
-const replyContainer = document.createElement('div');
+const replyContainer = document.createElement('div-container');
+replyContainer.setAttribute('layout', 'Post-Comment');
 replyContainer.slot = 'reply';
 comment.appendChild(replyContainer);
 this.renderCommentNode(reply, replyContainer, rcolor);
@@ -710,8 +712,8 @@ const postView=getActivity('postview');
 postView.innerHTML = '';
 postView.setAttribute('post-index', index);
 const postWrapper = document.createElement('div-container');
-postWrapper.setAttribute('layout', this.MainLayout);
-
+postWrapper.setAttribute('layout', 'Spin-Load-Animation');
+postView.appendChild(postWrapper);
 const mediaSlider= document.createElement('div-container');
 mediaSlider.setAttribute('layout', 'carouselle');
 postView.appendChild(Object.assign(document.createElement('p'), {
@@ -728,10 +730,10 @@ slot  : 'header',
 textContent : formatTimeAgo(post.created_utc)
 }));
 
-postView.appendChild(Object.assign(document.createElement('h1'), {
+postWrapper.appendChild(Object.assign(document.createElement('h1'), {
 fontWeight : 'bold',
 fontSize : '1.25rem',
-slot : 'content:head',
+//slot : 'content:head',
 textContent : post.title
 }));
 
@@ -796,13 +798,13 @@ commentWrapper.onclick= ()=> {
 const state = commentWrapper.getAttribute('layout');
 let layout;
 if(state === 'Bread-Crumb') layout = this.ListView;
-else layout = 'Bread-Crumb';
 commentWrapper.setAttribute('layout', layout);
 }}
 comments.forEach(c => { this.renderCommentNode(c,commentWrapper);
 });
 postWrapper.appendChild(commentWrapper);
-postView.appendChild(postWrapper);
+postWrapper.setAttribute('layout',
+this.MainLayout);
 }
 
 onLoadState(state) {
@@ -1692,7 +1694,7 @@ padding:0.5em;
 margin:0.5em;
 gap:0.5;
 background:var(--base-color-light);
-border:1px solid var(--base-fill-color);
+border:1px solid var(--overlay-color);
 border-radius: calc(var(--min-box-size ) / var(--r-factor));
 }
 
@@ -1722,19 +1724,26 @@ border-radius:var(--min-border-radius);
 
 ::part(Post-Comment) {
 display:grid;
-justify-content:flex-start;
+grid-template-columns: 1fr;
+grid-auto-rows:auto;
+grid-auto-flow: max-content;
+justify-content:flex-end;
 align-items:flex-start;
 flex-direction:column;
 text-align: left;
 mix-blend-mode:darken;
-padding:1em;
-float:right;
+flex:0 1 auto;
+border:2px solid var(--overlay-color);
+border-left:2px solid var(--base-fill-color);
+border-bottom:2px solid var(--base-fill-color);
 }
-::part(Post-Comment) > ::slotted(p) {
-padding:0.5em;
-margin-left:1em;
-width:auto; 
-mix-blend-mode:darken;
+
+[slot="reply"]::part(Post-Comment) {
+border:none;
+border-left:2px solid var(--base-fill-color);
+margin-top:0.5em;
+margin-left:0.5em;
+float:right;
 }
 
 ::part(carouselle) {
