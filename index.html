@@ -430,7 +430,8 @@ this.feed = this.getAttribute('default-url') || 'reddit';
 this.feed_limit = 100;
 this.feedData = [];
 this.currentIndex = 0;
-this.layout = 'List-Layout';
+this.MainLayout = 'Custom-Layout';
+this.ListView = 'List-Layout';
 this.loadingAnimation = 'Spin-Load-Indicator';
 this.loading = false;
 this.lastScrollPos = 0;
@@ -439,7 +440,7 @@ this.scrollThreshold = 10;
 
 init() {
 this.setAttribute('layout',
-this.layout);
+this.MainLayout);
 this.style.display='contents';
 this.trendTabNav = document.createElement('button');
 this.latestTabNav = document.createElement('button');
@@ -467,10 +468,9 @@ this.lastScrollPos = currentScroll;
 
 initialLoad() {
 this.resetFeed();
-this.trendTabNav.setAttribute('slot', 'footer:tab');
-this.latestTabNav.setAttribute('slot', 'footer:tab');
+this.trendTabNav.setAttribute('slot', 'bottom:tab');
+this.latestTabNav.setAttribute('slot', 'bottom:tab');
 this.contentTitle.setAttribute('slot', 'content:head');
-//this.loadIndicator.setAttribute('slot', 'overlay');
 this.loadIndicator.removeAttribute('slot');
 this.loadIndicator.setAttribute('layout', this.loadingAnimation);
 
@@ -495,10 +495,6 @@ this.latestTabNav.onclick = () => {
   this.showFeed('new');
 };
 
-this.parentNode.appendChild(this.latestTabNav);
-this.parentNode.appendChild(this.trendTabNav);
-this.parentNode.appendChild(this.loadIndicator);
-this.parentNode.appendChild(this.contentTitle);
 this.latestTabNav.click();
 }
 
@@ -507,12 +503,10 @@ this.resetFeed();
 if(tInd === 'new')   setText(this.contentTitle, 'r_feed_tab_label');
 if(tInd === 'hot') setText(this.contentTitle, 'r_trending_tab_label');
 this.loadIndicator.setAttribute('layout', this.loadingAnimation);
-this.loadIndicator.removeAttribute('slot');
 const json =await this.loadFeed(`${this.feed}/${tInd}`);
 this.setFeedData(json);
 this.loadFeedsList();
 this.loadIndicator.setAttribute('layout', 'view');
-this.loadIndicator.setAttribute('slot', 'hidden');
 }
 
 async loadFeed(source) {
@@ -533,6 +527,7 @@ this.currentIndex = 0;
 loadFeedsList() {
 if (this.loading) return;
 this.loading = true;
+this.loadIndicator.setAttribute('layout', this.loadingAnimation);
 const end = Math.min(
 this.currentIndex + this.scrollThreshold,
 this.feedData.length
@@ -719,7 +714,7 @@ const postView=getActivity('postview');
 postView.innerHTML = '';
 postView.setAttribute('post-index', index);
 const postWrapper = document.createElement('div-container');
-postWrapper.setAttribute('layout', this.layout);
+postWrapper.setAttribute('layout', this.MainLayout);
 
 const mediaSlider= document.createElement('div-container');
 mediaSlider.setAttribute('layout', 'carouselle');
@@ -794,7 +789,7 @@ if (comments.length <= 1) commentCount = `${post.num_comments} comment`;
 else commentCount = `${post.num_comments} comments`;
 
 const commentWrapper = document.createElement('div-container');
-commentWrapper.setAttribute('layout', this.layout);
+commentWrapper.setAttribute('layout', 'List-Layout');
 setIcon(commentWrapper,'comment');
 commentWrapper.appendChild(Object.assign(document.createElement('h3'), { slot : 'label' , textContent : commentCount }));
 
@@ -802,10 +797,12 @@ if(comments.length > 5 ) {
 commentWrapper.setAttribute('layout', 'Bread-Crumb');
 commentWrapper.onclick= ()=> {
 const state = commentWrapper.getAttribute('layout');
+
 let layout;
-if(state === 'Bread-Crumb') layout = this.layout; else layout = 'Bread-Crumb';
+if(state === 'Bread-Crumb') layout = this.ListView;
+else layout = 'Bread-Crumb';
 commentWrapper.setAttribute('layout', layout);
-if(layout === this.layout) commentWrapper.scrollIntoView();
+if(layout === this.ListView) commentWrapper.scrollIntoView();
 }}
 comments.forEach(c => { this.renderCommentNode(c,commentWrapper);
 });
@@ -819,7 +816,10 @@ onLoadState(state) {
 
 resetFeed() {
 this.innerHTML = '';
-this.contentTitle.innerHTML = '';
+this.appendChild(this.latestTabNav);
+this.appendChild(this.trendTabNav);
+this.appendChild(this.loadIndicator);
+this.appendChild(this.contentTitle);
 this.feedData = [];
 this.currentIndex = 0;
 this.loading = false;
@@ -1546,16 +1546,24 @@ background:var(--base-color-light);
 scroll-snap-type:y mandatory;
 }
 
-::part(Page-Layout) {
+::part(Page-Layout),
+::part(Custom-Layout) {
   display: grid;
-  grid-template-columns: 100%;
+  grid-template-columns:100%;
   grid-auto-rows:auto;
   grid-auto-flow:row;
-  height: 100%;
+  height: 100vh;
   width: 100%;
-  justify-content: center;
+  flex:0 1 100%;
+  justify-content: space-between;
   align-content:flex-start;
-  align-items:space-between;
+  align-items:flex-start;
+}
+::part(Custom-Layout) {
+  display:contents;
+  grid-template-rows:repeat(3,auto);
+  overflow:scroll;
+  height: 100%;
 }
 
 ::part(header),
@@ -1579,7 +1587,6 @@ max-height:3em;
 box-shadow: 2px 0px 5px var(--overlay-color);
 }
 ::part(header) {
-/*grid-template-columns:1fr 2fr 1fr;*/
 justify-content: space-between;
 }
 
@@ -2054,7 +2061,21 @@ installing it as an app will add it to your homscreen and enable it load and ope
 <slot name="BOTTOM"></slot>
 </layout>
 
-<layout part="Card-Layout">
+<layout part="Custom-Layout">
+<section part="header">
+  <slot name="content:icon"></slot>
+  <slot name="content:title"></slot>
+  <slot name="content:head"></slot>
+  <slot name="conten:tag"></slot>  
+</section>
+<section part="List-Layout">
+<slot></slot>
+</section>
+<section part="footer">
+<slot name="bottom:tab"></slot>
+</section>
+<slot name="overlay"></slot>
+</layout><layout part="Card-Layout">
 <section class="Linear-Layout">
 <slot name="card:actions"></slot>
 <slot name="card:option"></slot>
@@ -2115,7 +2136,6 @@ installing it as an app will add it to your homscreen and enable it load and ope
   <slot name="title"></slot>
   <slot name="label"></slot>  
 </section>
-
 <slot></slot>
 </layout>
 
@@ -2219,7 +2239,7 @@ not available
 
 
 
-<popup-menu slot="footer" label="@string/action_join" popup:title="@string/action_join" popup:content="@string/join_description">
+<popup-menu slot="header:button" label="@string/action_join" popup:title="@string/action_join" popup:content="@string/join_description">
 <list-item id="join_cta" label="@string/action_join_url" link="https://whatsapp.com/channel/0029Vay9qQm0wajlyNvoaV0d"><text-view slot="label">join our whatsapp community</text-view><svg id="wa_community" viewBox="0 0 512 512" slot="icon"><path d="M260.062 32C138.605 32 40.134 129.701 40.134 250.232c0 41.23 11.532 79.79 31.559 112.687L32 480l121.764-38.682c31.508 17.285 67.745 27.146 106.298 27.146C381.535 468.464 480 370.749 480 250.232 480 129.701 381.535 32 260.062 32zm109.362 301.11c-5.174 12.827-28.574 24.533-38.899 25.072-10.314.547-10.608 7.994-66.84-16.434-56.225-24.434-90.052-83.844-92.719-87.67-2.669-3.812-21.78-31.047-20.749-58.455 1.038-27.413 16.047-40.346 21.404-45.725 5.351-5.387 11.486-6.352 15.232-6.413 4.428-.072 7.296-.132 10.573-.011 3.274.124 8.192-.685 12.45 10.639 4.256 11.323 14.443 39.153 15.746 41.989 1.302 2.839 2.108 6.126.102 9.771-2.012 3.653-3.042 5.935-5.961 9.083-2.935 3.148-6.174 7.042-8.792 9.449-2.92 2.665-5.97 5.572-2.9 11.269 3.068 5.693 13.653 24.356 29.779 39.736 20.725 19.771 38.598 26.329 44.098 29.317 5.515 3.004 8.806 2.67 12.226-.929 3.404-3.599 14.639-15.746 18.596-21.169 3.955-5.438 7.661-4.373 12.742-2.329 5.078 2.052 32.157 16.556 37.673 19.551 5.51 2.989 9.193 4.529 10.51 6.9 1.317 2.38.901 13.531-4.271 26.359z"></path></svg></list-item>
 
 <text-view slot="label">join us</text-view><text-view slot="popup:title">join us</text-view><text-view slot="popup:content">Welcome to African Proverbs, a space where we celebrate the wisdom and richness of African culture through ancient sayings and proverbs. Join us as we explore the profound teachings and insights passed down through generations, and engage in meaningful discussions about the relevance of these timeless words in our modern lives. Let's come together to honor the diversity and depth of African wisdom, and learn from the invaluable lessons encapsulated in these proverbs. Embrace the beauty of African heritage and join us on this journey of enlightenment and inspiration. Karibu! (Welcome!)</text-view><svg id="add" viewBox="0 0 512 512" slot="icon"><path d="M417.4 224H288V94.6c0-16.9-14.3-30.6-32-30.6s-32 13.7-32 30.6V224H94.6C77.7 224 64 238.3 64 256s13.7 32 30.6 32H224v129.4c0 16.9 14.3 30.6 32 30.6s32-13.7 32-30.6V288h129.4c16.9 0 30.6-14.3 30.6-32s-13.7-32-30.6-32z"></path></svg></popup-menu>
