@@ -471,7 +471,7 @@ this.resetFeed();
 this.trendTabNav.setAttribute('slot', 'bottom:tab');
 this.latestTabNav.setAttribute('slot', 'bottom:tab');
 this.contentTitle.setAttribute('slot', 'content:head');
-this.loadIndicator.removeAttribute('slot');
+this.loadIndicator.setAttribute('slot', 'load:state');
 this.loadIndicator.setAttribute('layout', this.loadingAnimation);
 
 setIcon(this.trendTabNav, 'r_trends');
@@ -797,12 +797,10 @@ if(comments.length > 5 ) {
 commentWrapper.setAttribute('layout', 'Bread-Crumb');
 commentWrapper.onclick= ()=> {
 const state = commentWrapper.getAttribute('layout');
-
 let layout;
 if(state === 'Bread-Crumb') layout = this.ListView;
 else layout = 'Bread-Crumb';
 commentWrapper.setAttribute('layout', layout);
-if(layout === this.ListView) commentWrapper.scrollIntoView();
 }}
 comments.forEach(c => { this.renderCommentNode(c,commentWrapper);
 });
@@ -820,6 +818,7 @@ this.appendChild(this.latestTabNav);
 this.appendChild(this.trendTabNav);
 this.appendChild(this.loadIndicator);
 this.appendChild(this.contentTitle);
+this.contentTitle.innerHTML = '';
 this.feedData = [];
 this.currentIndex = 0;
 this.loading = false;
@@ -1546,8 +1545,7 @@ background:var(--base-color-light);
 scroll-snap-type:y mandatory;
 }
 
-::part(Page-Layout),
-::part(Custom-Layout) {
+::part(Page-Layout){
   display: grid;
   grid-template-columns:100%;
   grid-auto-rows:auto;
@@ -1555,15 +1553,13 @@ scroll-snap-type:y mandatory;
   height: 100vh;
   width: 100%;
   flex:0 1 100%;
+  overflow: scroll;
   justify-content: space-between;
   align-content:flex-start;
-  align-items:flex-start;
+  align-items:space-between;
 }
 ::part(Custom-Layout) {
   display:contents;
-  grid-template-rows:repeat(3,auto);
-  overflow:scroll;
-  height: 100%;
 }
 
 ::part(header),
@@ -1584,7 +1580,7 @@ grid-row:span 1;
 grid-column:span 1;
 width: 100%;
 max-height:3em;
-box-shadow: 2px 0px 5px var(--overlay-color);
+/*box-shadow: 2px 0px 5px var(--overlay-color);*/
 }
 ::part(header) {
 justify-content: space-between;
@@ -1747,7 +1743,7 @@ grid-template-columns:100%;
 gap:0.5em;
 width:100%;
 max-height:100%;
-flex:0 1 auto;
+flex:0 1 100%;
 padding-top:1em;
 padding-bottom:1em;
 overflow-y:scroll;
@@ -1767,18 +1763,7 @@ width:auto;
 }
 
 ::part(toastBar) {
-display:flex;
-justify-content:center;
-align-items:center;
-gap:1em;
-max-height:4em;
-width:100%;
-flex:0 1 auto;
-z-index: 3;
-top:0;
-left:0;
-position: absolute;
-background:var(--base-color-light);
+display:contents;
 }
 ::part(Spin-Load-Indicator) {
 display:flex;
@@ -2062,6 +2047,7 @@ installing it as an app will add it to your homscreen and enable it load and ope
 </layout>
 
 <layout part="Custom-Layout">
+<slot part="toastBar" name="load:state"></slot>
 <section part="header">
   <slot name="content:icon"></slot>
   <slot name="content:title"></slot>
