@@ -34,11 +34,11 @@ const file =  await routeByType(blob);
 self.postMessage(file);
 };
  function fileReader(blob, method) {
-return  new Promise ((resolve, reject )=>{
+return  new Promise ((resolve,reject )=>{
 const reader = new FileReader();
 reader.onload = () => resolve(reader.result);
 reader.onerror = () => reject(reader.result);
-reader[method](blob);
+ reader[method](blob);
   });
 }
 
@@ -51,9 +51,13 @@ reader[method](blob);
     type.includes('text/css') ||
     type.includes('image/svg+xml') ||
     type.includes('text/html') ||
-    type.includes('application/xml') ||
-    type.includes('application/manifest+json'))
+    type.includes('application/xml')
+  // || type.includes('application/manifest+json'))
+  )
 return  fileReader(blob, 'readAsText');
+if(type.includes('application/manifest+json')
+|| type.includes('application/json'))
+fileReader(blob, 'json');
 if(
   type.startsWith('audio/') ||
   type.startsWith('video/') ||
@@ -86,7 +90,14 @@ function useWorker(fn, data) {
     };
     w.postMessage(data);
   });
-}class baseComponent extends HTMLElement {
+}
+const presets = {
+mediaView : {
+    element: 'object',
+    width : '100%',
+    height: '100%'
+  }
+};class baseComponent extends HTMLElement {
   constructor() {
  super();
  this.attachShadow({ mode : 'open'});
@@ -144,6 +155,36 @@ moveElement(element, parentNode) {
 }
   
 
+}class UIComposer extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this.props = null;
+    this.view = null;
+  }
+set config(obj) {
+this.props = obj; 
+this.render();
+}
+get config() {
+return this.props;
+}
+
+render() {
+if (!this.config) return;
+this.view = Object.assign(document.createElement(this.props.element), this.props);
+if(this.props.slot) this.setAttribute('slot', this.props.slot);
+this.view.removeAttribute('slot');
+adoptStyles(this);
+setLayout(this, 'View');
+this.shadowRoot.appendChild(this.view);
+  }
+
+static create(props) {
+const instance = new UIComposer();
+instance.config =props;
+return instance;
+  }
 }class Modal extends baseComponent {
 init() {
 this.setAttribute('state','collapsed');
@@ -234,7 +275,7 @@ const currentURL = new URL(window.location.href);
 if(currentIndex !== 'main' ) { history.pushState( newState ,null, `/${currentIndex}/`) }
 
 if(currentIndex === 'main' ) { history.replaceState(newState,null,`/`) }
-//document.title = window.location.href;
+document.title = window.location.href;
 }
 
 attachListeners() {
@@ -389,40 +430,6 @@ const link = this.getAttribute('link');
 if(link) window.location.href = link;
 };
 }}
-
-customElements.define('main-view', class extends MainView {} );
-
-customElements.define('page-menu',
-class extends PageMenu {});
-
-customElements.define('expandable-menu',class extends ContextMenu {});
-
-customElements.define('side-nav',
-class extends SideNavBar {});
-
-customElements.define('accordion-menu',
-class extends Accordion {});
-
-customElements.define('popup-menu',class extends PopupMenu {});
-
-customElements.define('div-container', 
-class extends DivLayout {});
-
-customElements.define(
-'floating-action-button',
-class extends FloatingActionButton {});
-
-customElements.define('div-card', 
-class extends CardLayout {});
-
-customElements.define('list-item',
-class extends ListItem {});
-
-customElements.define('media-view',
-class extends MediaView {});
-
-customElements.define('app-activity', 
-class extends Activity {});
 class RedditClient extends baseComponent {
 
 config() {
@@ -456,9 +463,10 @@ if( part === 'List-Layout') {
 const currentScroll=e.target.scrollTop;
 const prevScroll = this.lastScrollPos;
 if(currentScroll > prevScroll)  {
-  this.loadFeedsList(); 
+this.loadFeedsList(); 
 this.contentTitle.slot = 'hidden';
-} else this.contentTitle.slot= 'content:head';
+} else { 
+  this.contentTitle.slot= 'content:head' }
 this.lastScrollPos = currentScroll;
 }});
 
@@ -466,8 +474,8 @@ this.lastScrollPos = currentScroll;
 
 initialLoad() {
 this.resetFeed();
-this.trendTabNav.setAttribute('slot', 'bottom:tab');
-this.latestTabNav.setAttribute('slot', 'bottom:tab');
+this.trendTabNav.setAttribute('slot', 'footer:tab');
+this.latestTabNav.setAttribute('slot', 'footer:tab');
 this.contentTitle.setAttribute('slot', 'content:head');
 setIcon(this.trendTabNav, 'r_trends');
 setIcon(this.latestTabNav, 'r_feeds');
@@ -489,8 +497,10 @@ this.latestTabNav.onclick = () => {
   this.latestTabNav.disabled = true;
   this.showFeed('new');
 };
-
-this.latestTabNav.click();
+this.parentNode.appendChild(this.latestTabNav);
+this.parentNode.appendChild(this.trendTabNav);
+//this.latestTabNav.click();
+this.trendTabNav.click();
 }
 
 async showFeed(tInd) {
@@ -503,14 +513,15 @@ this.loadFeedsList();
 }
 
 async loadFeed(source) {
-
-await customElements.whenDefined('app-activity');
-const url = `https://www.reddit.com/r/${source}.json?limit=${this.feed_limit}`;
-const data = await useWorker(urlLoader,
-url).then((r)=>{return JSON.parse(r)})
-.catch(err=> alert(err));
+//await customElements.whenDefined('app-activity');
+const url = `https://www.reddit.com/r/${source}.json?limit="${this.feed_limit}"`;
+//const data = await useWorker(urlLoader,
+//url).then((r)=>{return JSON.parse(r);})
+//.catch(err=> alert(err));
+const request = await fetch(url);
+const response = await request.text();
+const data = JSON.parse(response);
 return data;
-
 }
 
 setFeedData(json) {
@@ -564,7 +575,7 @@ let rcolor;
 if(color) rcolor = color;
 else rcolor = randomRGBA();
   const comment = document.createElement('div-container');
- comment.setAttribute('layout', 'Post-Comment');
+ comment.setAttribute('layout', 'comment');
   comment.style.scrollSnapAlign = 'start';
   const author = document.createElement('p');
   author.slot = 'user';
@@ -579,7 +590,7 @@ text.slot = 'comment';
 
   comment.appendChild(author);
   comment.appendChild(text);
-  if(parentContainer.getAttribute('layout')=== 'Post-Comment') comment.setAttribute('slot', 'reply');
+  if(parentContainer.getAttribute('layout')=== 'comment') comment.setAttribute('slot', 'reply');
   parentContainer.appendChild(comment);
 const replies = commentData.data.replies?.data?.children;
 
@@ -588,7 +599,7 @@ replies.forEach(reply => {
 if (!reply.data?.body) return;
 
 const replyContainer = document.createElement('div-container');
-replyContainer.setAttribute('layout', 'Post-Comment');
+replyContainer.setAttribute('layout', 'comment');
 replyContainer.slot = 'reply';
 comment.appendChild(replyContainer);
 this.renderCommentNode(reply, replyContainer, rcolor);
@@ -647,8 +658,8 @@ if(post.media.image
 || post.media.video
 || post.media.gallery.length) {
 let mediaType;
-const img = document.createElement('img');
-img.setAttribute('slot','card:cover');
+const thumbnail = {};
+thumbnail.slot='card:cover';
 const tag = document.createElement('div-container');
 tag.style.fontSize = '0.5rem';
 tag.style.fontWeight = '700';
@@ -658,17 +669,18 @@ tag.setAttribute('layout', 'horizontalBar');
 
 if (post.media.gallery.length > 1) {
 
-img.src = post.media.gallery[0];
-card.appendChild(img);
+thumbnail.data = post.media.gallery[0];
+card.appendChild(addImage(thumbnail));
+
 mediaType = 'gallery';
 tag.textContent = `${post.media.gallery.length} photos`;
 }
 else if (post.media.image) {
-img.src = post.media.image;
-card.appendChild(img);
-
-if(!post.media.video) mediaType = 'image'; else mediaType = 'video';
+thumbnail.data = post.media.image;
+card.appendChild(addImage(thumbnail));
+if(post.media.video === null) mediaType = 'image'; else mediaType = 'video';
 }
+tag.textContent += mediaType;
 setIcon(tag, mediaType);
 card.appendChild(tag);
 }
@@ -706,7 +718,8 @@ this.appendChild(card);
 
 async viewPost(index) {
 await customElements.whenDefined('app-activity');
-openPage('postview');
+this.loading = true;
+//openPage('postview');
 const post = this.feedData[index];
 const postView=getActivity('postview');
 postView.innerHTML = '';
@@ -723,62 +736,60 @@ slot  : 'header',
 textContent :post.author
 }));
 
-postView.appendChild(Object.assign(document.createElement('p'), {
+postView.appendChild(Object.assign(document.createElement('h4'), {
 fontWeight : 'bold',
 fontSize : '0.35rem',
 slot  : 'header',
 textContent : formatTimeAgo(post.created_utc)
 }));
 
-postWrapper.appendChild(Object.assign(document.createElement('h1'), {
+postView.appendChild(Object.assign(document.createElement('h1'), {
 fontWeight : 'bold',
 fontSize : '1.25rem',
-//slot : 'content:head',
+slot : 'content:head',
 textContent : post.title
 }));
 
 
 const media = this.getPostMedia(post);
-
+if(media) {
 if (media.gallery.length > 1 ) {
-media.gallery.forEach((src, index) => {
-const img = document.createElement('img');
-img.style.scrollSnapAlign = 'start';
-img.src=src;
+media.gallery.forEach((url, index)=>{
+const img = new Image();
+img.src = url;
 mediaSlider.appendChild(img);
 });
 postWrapper.appendChild(mediaSlider);
 }
 
+
 if (media.video) {
 const video = document.createElement('video');
 video.src = media.video;
 video.poster = media.image;
-video.style.scrollSnapAlign = 'center';
 video.controls = true;
-postWrapper.appendChild(video);
+mediaSlider.appendChild(video);
+postWrapper.appendChild(mediaSlider);
 }
 
-if (media.image && !media.video) {
+if (media.image) {
 const img = new Image();
 img.src = media.image;
 img.style.scrollSnapAlign = 'center';
-postWrapper.appendChild(img);
+mediaSlider.appendChild(img)
+postWrapper.appendChild(mediaSlider);
 }
 
 if (media.embed) {
 const div = document.createElement('iframe');
 div.srcDoc = media.embed;
-div.style.scrollSnapAlign = 'start';
 postWrapper.appendChild(div);
 }
-
+}
 if (post.selftext) {
 const text=document.createElement('p');
 text.innerHTML = post.selftext;
-//text.style.scrollSnapAlign = 'start'
 postWrapper.appendChild(text);
-
 }
 
 const comments=await this.getComments(post);
@@ -791,20 +802,23 @@ const commentWrapper = document.createElement('div-container');
 commentWrapper.setAttribute('layout', this.ListView);
 setIcon(commentWrapper,'comment');
 commentWrapper.appendChild(Object.assign(document.createElement('h3'), { slot : 'label' , textContent : commentCount }));
+let layout;
+if(comments.length > 0 < 5 ) layout = this.ListView;
+if(comments.length >= 5 ) layout  = 'Bread-Crumb';
 
-if(comments.length > 5 ) {
-commentWrapper.setAttribute('layout', 'Bread-Crumb');
+commentWrapper.setAttribute('layout', layout);
 commentWrapper.onclick= ()=> {
 const state = commentWrapper.getAttribute('layout');
-let layout;
-if(state === 'Bread-Crumb') layout = this.ListView;
+if(state === 'Bread-Crumb') layout = this.ListView ; 
 commentWrapper.setAttribute('layout', layout);
-}}
+}
 comments.forEach(c => { this.renderCommentNode(c,commentWrapper);
 });
 postWrapper.appendChild(commentWrapper);
 postWrapper.setAttribute('layout',
-this.MainLayout);
+this.ListView);
+this.loading = false;
+openPage('postview');
 }
 
 onLoadState(state) {
@@ -813,8 +827,6 @@ onLoadState(state) {
 
 resetFeed() {
 this.innerHTML = '';
-this.appendChild(this.latestTabNav);
-this.appendChild(this.trendTabNav);
 this.appendChild(this.contentTitle);
 this.contentTitle.innerHTML = '';
 this.feedData = [];
@@ -824,6 +836,46 @@ this.loading = false;
 }
 
 customElements.define('reddit-feeds', RedditClient);
+//document.addEventListener('DOMContentLoaded', ()=>{
+
+customElements.define('use-component', UIComposer);
+
+customElements.define('main-view',
+class extends MainView {} );
+
+customElements.define('page-menu',
+class extends PageMenu {});
+
+customElements.define('expandable-menu',class extends ContextMenu {});
+
+customElements.define('side-nav',
+class extends SideNavBar {});
+
+customElements.define('accordion-menu',
+class extends Accordion {});
+
+customElements.define('popup-menu',class extends PopupMenu {});
+
+customElements.define('div-container', 
+class extends DivLayout {});
+
+customElements.define(
+'floating-action-button',
+class extends FloatingActionButton {});
+
+customElements.define('div-card', 
+class extends CardLayout {});
+
+customElements.define('list-item',
+class extends ListItem {});
+
+customElements.define('media-view',
+class extends MediaView {});
+
+customElements.define('app-activity', 
+class extends Activity {});
+
+//});
 
 function mediaCodec(base64, callback) {
   useWorker(mediaToURL,
@@ -936,7 +988,6 @@ textNode.textContent = text;
 target.appendChild(textNode);
 }}
 
-
 function onEvent(type,target,fn) {
 target.addEventListener(type, fn , true );
 }
@@ -987,6 +1038,16 @@ const r=Math.floor(Math.random()*256);
 const a = 0.25;
 return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
+
+function addImage(props = {}) {
+  const el =  UIComposer.create(
+  {...presets.mediaView,
+  ...props,
+  element: 'object'});
+  return el;
+}
+
+
 window.onload = async(e) => {
 let startIndex;
 const ctx = window.location.pathname;
@@ -1455,6 +1516,7 @@ scroll-snap-type: y mandatory;
 }
 [scroll="X"] {
 overflow-x: scroll;
+scroll-snap-type: x mandatory;
 gap:0.5em;
 scroll-snap-type: x mandatory;
 }
@@ -1485,8 +1547,8 @@ min-height:3em;
 margin: 0.25em;
 aspect-ratio:1;
 border:2px solid var(--overlay-color);
-border-left: 2px solid var(--base-color-light);
-border-right:2px solid var(--base-color-light);
+border-left: 1em solid var(--base-color-light);
+border-right:1em solid var(--base-color-light);
 color:var(--base-color-light);
 border-radius:50%;
 animation: Spin 2s linear infinite;
@@ -1542,13 +1604,15 @@ z-index: 3;
   align-items:center;
   background: var(--overlay-color);
   width:100%;
-  height:100%;
+  max-height:100%;
+  position:fixed;
+  z-index:3;
 }
 ::part(Post-Layout) {
 display:grid;
 grid-template-columns:100%;
-grid-auto-rows:max-content;
-grid-auto-flow:auto;
+grid-auto-rows:auto;
+grid-auto-flow:rows;
 justify-content:flex-start;
 align-items:center;
 height: 100%;
@@ -1561,26 +1625,31 @@ scroll-snap-type:y mandatory;
 ::part(Page-Layout){
   display: grid;
   grid-template-columns:100%;
-  grid-auto-rows:auto;
   grid-auto-flow:row;
-  height: 100%;
+  grid-template-rows:repeat(10,1fr);
+  grid-auto-rows:min-content;
+  max-height: 100%;
   width: 100%;
-  flex:0 1 100%;
-  overflow: scroll;
-  justify-content: space-between;
+  overflow:hidden;
+  justify-content: center;
   align-content:flex-start;
   align-items:flex-start;
 }
+::part(Page-Layout) > section {
+grid-row:span 1;
+}
+
 ::part(Custom-Layout) {
   display: grid;
   grid-template-columns:100%;
+  grid-template-rows:repeat(auto, auto);
   grid-auto-rows:auto;
   grid-auto-flow:row;
   height: 100%;
   width: 100%;
   flex:0 1 100%;
   overflow-y: scroll;
-  justify-content: space-between;
+  justify-content: center;
   align-content:flex-start;
   align-items:flex-start;
 }
@@ -1589,21 +1658,20 @@ scroll-snap-type:y mandatory;
 ::part(footer)
 {
 display: grid;
-justify-content: space-around;
-align-items: center;
+justify-content:space-around;
+align-items:center;
+grid-template-rows:max-content;
+grid-template-columns:repeat(auto, auto);
 grid-auto-flow:column;
-grid-auto-columns:max-content;
-grid-template-rows:100%;
+grid-auto-columns:auto;
 color:var(--base--color-dark);
 fill:var(--base--color-dark);
 background:var(--base-color-light);
 color:var(--base-color-dark);
 text-align: center;
-grid-row:span 1;
-grid-column:span 1;
 width: 100%;
-max-height:3em;
-/*box-shadow: 2px 0px 5px var(--overlay-color);*/
+max-height:3.5em;
+box-shadow: 2px 0px 5px var(--overlay-color);
 }
 ::part(header) {
 justify-content: space-between;
@@ -1613,13 +1681,14 @@ justify-content: space-between;
 display:grid;
 justify-content:center;
 align-items:flex-start;
+align-content:flex-start;
 grid-template-columns:95%;
-grid-auto-rows:auto;
 grid-auto-flow:row;
-width:100%;
-height:100%;
+grid-auto-rows:repeat(auto, auto);
+width: 100%;
+height: 100%;
+grid-row:span 10;
 overflow:auto;
-grid-row: span 1fr;
 }
 
 ::part(footer) {
@@ -1722,59 +1791,56 @@ width:90%;
 border-radius:var(--min-border-radius);
 }
 
-::part(Post-Comment) {
+::part(comment) {
 display:grid;
-grid-template-columns: 1fr;
-grid-auto-rows:auto;
-grid-auto-flow: max-content;
+grid-template-columns:100%;
+grid-template-rows:repeat(auto, auto);
+grid-auto-rows: max-content;
+grid-auto-flow:row;
 justify-content:flex-end;
-align-items:flex-start;
-flex-direction:column;
-text-align: left;
+align-content:space-between;
 mix-blend-mode:darken;
 flex:0 1 auto;
 border:2px solid var(--overlay-color);
 border-left:2px solid var(--base-fill-color);
-border-bottom:2px solid var(--base-fill-color);
+border-top:2px solid var(--base-fill-color);
 }
 
-[slot="reply"]::part(Post-Comment) {
+[slot="reply"]::part(comment) {
 border:none;
 border-left:2px solid var(--base-fill-color);
-margin-top:0.5em;
-margin-left:0.5em;
+margin-top:0.25em;
+margin-left:0.25em;
 float:right;
 }
 
 ::part(carouselle) {
-display:flex;
+display:grid;
 justify-content:flex-start;
 align-items:center;
-overflow: scroll;
+align-content:center;
+background: red;
+grid-template-columns:repeat(auto,100%);
+grid-template-rows:auto;
+grid-auto-columns:100%;
+grid-auto-flow:column;
+overflow-x: scroll;
 width:100%;
-flex:0 1 100%;
 max-height:100%;
-gap:33%;
-height: auto;
-scroll-snap-type:x mandatory;
+scroll-snap-type: x mandatory;
 }
-
-::part(slide) {
-display: flex;
-justify-content:space-between;
-align-items:center;
-flex-direction: column;
-width:100%;
-height:100%;
-background:red;
+[layout="carouselle"] > * {
+scroll-snap-align:start;
 }
 
 ::part(List-Layout) {
 display:grid;
-justify-content:center;
-align-content:flex-start;
+justify-content:flex-start;
 align-items:flex-start;
 grid-template-columns:100%;
+grid-auto-rows:repeat(auto, auto);
+grid-auto-flow:rows;
+grid-row: span 1fr;
 gap:0.5em;
 width:100%;
 max-height:100%;
@@ -1801,13 +1867,17 @@ width:auto;
 display:contents;
 }
 ::part(Spin-Load-Indicator) {
-display:flex;
+display:grid;
+grid-template-columns:auto;
+grid-template-rows:repeat(auto, auto);
+grid-auto-flow: row;
 justify-content:center;
 align-items:center;
-flex-direction:column;
+align-content: center;
 height:100%;
-flex:0 1 100%;
+width:100%;
 }
+
 .Column-Layout {
 display: flex;
 justify-content:flex-start;
@@ -1965,14 +2035,15 @@ fill:#fff;
 </section>
 
 <section part="footer">
-<slot name="footer:active" class="Linear-Layout" scroll="X">
+<slot name="footer:active" scroll="X">
 <slot name="footer:tab"></slot>
 <slot name="footer"></slot>
 <slot name="fab" part="floating-action-button"></slot>
 </slot>
 </section>
 
-<section part="overlay" class="Frame-Layout"><slot name="overlay"></slot>
+<section part="overlay">
+<slot name="overlay" class="Frame-Layout"></slot>
 </section>
 
 </layout><svg id="hamburger_menu" viewBox="0 0 512 512"><path d="M64 384h384v-42.666H64V384zm0-106.666h384v-42.667H64v42.667zM64 128v42.665h384V128H64z"></path></svg>
@@ -2019,6 +2090,15 @@ installing it as an app will add it to your homscreen and enable it load and ope
 <string for="r_feed_tab_label" en-us="feed"></string>
 
 <string for="r_collapse_comments" en-us="collapse"></string>
+
+<string for="r_tag_image" en-us="photo"></string>
+
+<string for="r_tag_gallery" en-us="photos"></string>
+
+<string for="r_tag_video" en-us="video"></string>
+
+
+
 
 <string for="info_text" en-us="learn more"></string>
 
@@ -2117,8 +2197,8 @@ installing it as an app will add it to your homscreen and enable it load and ope
 </layout>
 
 <layout part="Spin-Load-Indicator">
-<spinner></spinner>
-<slot name="load:state"></slot>
+<spinner class="Frame-Layout"></spinner>
+<slot name="load:state">loader</slot>
 </layout>
 
 <layout part="Fill-Load-Indicator" class="Frame-Layout">
@@ -2147,7 +2227,7 @@ installing it as an app will add it to your homscreen and enable it load and ope
 <slot></slot>
 </layout>
 
-<layout part="Post-Comment">
+<layout part="comment">
 <slot name="user"></slot>
 <slot name="comment"></slot>
 <slot name="reply"></slot>
@@ -2225,6 +2305,16 @@ not available
 </section>
 </layout>
 
+<layout part="verticalScrollList">
+<section class="Linear-Layout">
+<slot name="list:info">list</slot>
+<button onclick="history.back()"><svg id="error" viewBox="0 0 24 24" slot="icon"><path d="M12.984 12.984v-6h-1.969v6h1.969zm0 4.032V15h-1.969v2.016h1.969zm-.984-15c5.531 0 9.984 4.453 9.984 9.984S17.531 21.984 12 21.984 2.016 17.531 2.016 12 6.469 2.016 12 2.016z"></path></svg></button>
+</section>
+<section part="List-Layout">
+<slot name="list:content"></slot>
+</section>
+</layout>
+
 <layout part="content">
 <center>
   <slot name="content"></slot>
@@ -2232,9 +2322,7 @@ not available
 </layout>
 
 <layout part="carouselle">
-  <span></span>
-  <slot></slot>
-  <span></span>
+<slot part="slide"></slot>
 </layout><svg id="add" viewBox="0 0 512 512"><path d="M417.4 224H288V94.6c0-16.9-14.3-30.6-32-30.6s-32 13.7-32 30.6V224H94.6C77.7 224 64 238.3 64 256s13.7 32 30.6 32H224v129.4c0 16.9 14.3 30.6 32 30.6s32-13.7 32-30.6V288h129.4c16.9 0 30.6-14.3 30.6-32s-13.7-32-30.6-32z"></path></svg>
 
 <svg id="wa_community" viewBox="0 0 512 512"><path d="M260.062 32C138.605 32 40.134 129.701 40.134 250.232c0 41.23 11.532 79.79 31.559 112.687L32 480l121.764-38.682c31.508 17.285 67.745 27.146 106.298 27.146C381.535 468.464 480 370.749 480 250.232 480 129.701 381.535 32 260.062 32zm109.362 301.11c-5.174 12.827-28.574 24.533-38.899 25.072-10.314.547-10.608 7.994-66.84-16.434-56.225-24.434-90.052-83.844-92.719-87.67-2.669-3.812-21.78-31.047-20.749-58.455 1.038-27.413 16.047-40.346 21.404-45.725 5.351-5.387 11.486-6.352 15.232-6.413 4.428-.072 7.296-.132 10.573-.011 3.274.124 8.192-.685 12.45 10.639 4.256 11.323 14.443 39.153 15.746 41.989 1.302 2.839 2.108 6.126.102 9.771-2.012 3.653-3.042 5.935-5.961 9.083-2.935 3.148-6.174 7.042-8.792 9.449-2.92 2.665-5.97 5.572-2.9 11.269 3.068 5.693 13.653 24.356 29.779 39.736 20.725 19.771 38.598 26.329 44.098 29.317 5.515 3.004 8.806 2.67 12.226-.929 3.404-3.599 14.639-15.746 18.596-21.169 3.955-5.438 7.661-4.373 12.742-2.329 5.078 2.052 32.157 16.556 37.673 19.551 5.51 2.989 9.193 4.529 10.51 6.9 1.317 2.38.901 13.531-4.271 26.359z"></path></svg>
