@@ -512,16 +512,28 @@ this.setFeedData(json);
 this.loadFeedsList();
 }
 
-async loadFeed(source) {
+async loadFeed(subreddit) {
 //await customElements.whenDefined('app-activity');
-const url = `https://www.reddit.com/r/${source}.json?limit="${this.feed_limit}"`;
-//const data = await useWorker(urlLoader,
-//url).then((r)=>{return JSON.parse(r);})
-//.catch(err=> alert(err));
-const request = await fetch(url);
-const response = await request.text();
-const data = JSON.parse(response);
+const url = `https://api.reddit.com/r/${subreddit}.json?limit="${this.feed_limit}"`;
+try{
+const request = await fetch(url,{
+method:"GET",
+headers:{
+"Accept":"application/json"
+}
+});
+
+if(!request.ok){
+alert("Request failed");
+return;
+}
+
+const data = await request.json();
 return data;
+
+}catch(error){
+alert(error);
+}
 }
 
 setFeedData(json) {
@@ -776,7 +788,7 @@ if (media.image) {
 const img = new Image();
 img.src = media.image;
 img.style.scrollSnapAlign = 'center';
-mediaSlider.appendChild(img)
+mediaSlider.appendChild(img);
 postWrapper.appendChild(mediaSlider);
 }
 
@@ -811,7 +823,7 @@ commentWrapper.onclick= ()=> {
 const state = commentWrapper.getAttribute('layout');
 if(state === 'Bread-Crumb') layout = this.ListView ; 
 commentWrapper.setAttribute('layout', layout);
-}
+};
 comments.forEach(c => { this.renderCommentNode(c,commentWrapper);
 });
 postWrapper.appendChild(commentWrapper);
