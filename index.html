@@ -525,30 +525,47 @@ this.setFeedData(json);
 this.loadFeedsList();
 }
 
-async loadFeed(subreddit) {
-await customElements.whenDefined('app-activity');
-const url = `https://api.reddit.com/r/${encodeURIComponent(subreddit)}.json?limit=${this.feed_limit}`;
-try{
-const request = await fetch(url,{
-method:"GET",
-mode: "cors",
-credentials: "omit",
-headers:{
-"Accept":"text/plain",
-"Content-Type": "text/plain"
-}});
+async loadFeed(subreddit){
 
-if(!request.ok){
-alert("err connection");
+await customElements.whenDefined('app-activity');
+
+const url = "https://www.reddit.com/r/" + encodeURIComponent(subreddit) + ".json?limit=" + this.feed_limit;
+
+let request;
+
+try{
+
+request = await fetch(url,{
+method:"GET",
+mode:"cors",
+cache:"no-store",
+credentials:"omit",
+headers:{
+"Accept":"application/json"
+}
+});
+
+}catch(e){
+alert("network error");
 return;
 }
 
-const data = await request.json();
+if(!request || !request.ok){
+alert("connection failed");
+return;
+}
+
+let data;
+
+try{
+data = await request.json();
+}catch(e){
+alert("json parse error");
+return;
+}
+
 return data;
 
-}catch(error){
-alert(error);
-}
 }
 
 setFeedData(json) {
