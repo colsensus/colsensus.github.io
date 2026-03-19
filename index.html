@@ -18,6 +18,7 @@ async connectedCallback() {
 await this.config?.();
  await this.init?.();
  await this.attachListeners?.();
+ await this.create?.();
  await this.onCreate?.();
 }
 
@@ -93,15 +94,17 @@ return instance;
 }class MediaPlayer extends baseComponent {
 
 init() {
-this.setAttribute('layout', this.layout);
+this.setAttribute('layout',this.layout);
 
 const root = this.shadowRoot;
-this.video=root.querySelector('video');
-this.audio=root.querySelector('audio');
+this.player=root.querySelector('player');
+this.video=document.createElement('video');
+this.audio=document.createElement('audio');
 this.poster=this.getAttribute('cover')||'';
 this.playBtn =root.querySelector('#playButton');
 this.seekBar = root.querySelector('#seekBar');
 this.timer = root.querySelector('#playBackTimer');
+this.fstoggle = root.querySelector('#fstoggle');
 const sources = this.querySelectorAll('source');
 sources.forEach(src => {
 const type=src.getAttribute('type')||'';
@@ -115,18 +118,27 @@ this.video.disableRemotePlayback = true;
 this.video.preload = 'auto';
 this.audio.preload = 'auto'; 
 this.video.controls = false;
+this.video.mute = true;
 this.audio.controls = false;
 this.video.loop = false;
-this.video.playsInline = false;
+this.video.playsInline = true;
+this.video.disabled = true;
 this.video.controlsList = 'nodownload noplaybackrate';
 this.audio.controlsList = 'nodownload noplaybackrate';
-this.video.autoplay = true;
+this.seekBar.disabled = true;
+this.hasPlayed = false;
 }
 
 attachListeners() {
+this.fstoggle.onclick=()=> {
+if(document.fullscreenElement) document.exitFullscreen(); else this.video.requestFullscreen();
+}
+
 this.video.onplay = () => {
+this.hasPlayed = true;
 this.video.disabled = false;
-this.audio.currentTime = this.video.currentTime;
+const offset = this.video.currentTime - this.audio.currentTime; 
+if(Math.abs(offset) > 0.25 )this.audio.currentTime=this.video.currentTime;
 this.audio.play();
 this.playBtn.innerHTML = '';
 setIcon(this.playBtn, 'pause');
@@ -175,9 +187,12 @@ this.video.paused ? this.video.play() : this.video.pause();
 this.video.onclick = () => {
 this.video.paused ? this.video.play() : this.video.pause();
 };
-this.video.play();
 }
-
+create() {
+this.player.appendChild(this.video);
+this.player.appendChild(this.audio);
+if(this.video.buffered.length > 5) this.video.play();
+}
 }class Modal extends baseComponent {
 init() {
 this.setAttribute('state','collapsed');
@@ -444,8 +459,9 @@ this.layout = 'Video-Player';
 class RedditClient extends baseComponent {
 
 config() {
-//this.feed = 'giaderza';
 this.feed = this.getAttribute('url') || 'reddit';
+//this.feed = 'giaderza';
+//this.feed = 'TikTokCringe';
 this.feed_limit = 100;
 this.feedData = [];
 this.currentIndex = 0;
@@ -456,6 +472,7 @@ this.lastScrollPos = 0;
 this.scrollThreshold = 10;
 this.videoPlaybackResolution = '480';
 this.feedList = new Page();
+this.postView= new Page();
 }
 
 init() {
@@ -520,7 +537,7 @@ async showFeed(tInd) {
 this.resetFeed();
 if(tInd === 'new')   setText(this.contentTitle, 'r_feed_tab_label');
 if(tInd === 'hot') setText(this.contentTitle, 'r_trending_tab_label');
-const json =await this.loadFeed(`${this.feed}/${tInd}`);
+const json =await this.loadRedditFeed(`${this.feed}/${tInd}`);
 this.setFeedData(json);
 this.loadFeedsList();
 }
@@ -529,22 +546,17 @@ async loadFeed(subreddit){
 
 await customElements.whenDefined('app-activity');
 
-const url = "https://www.reddit.com/r/" + encodeURIComponent(subreddit) + ".json?limit=" + this.feed_limit;
+const url =
+"https://www.reddit.com/r/" +
+encodeURIComponent(subreddit) +
+".json?limit=" +
+this.feed_limit +
+"&raw_json=1";
 
 let request;
 
 try{
-
-request = await fetch(url,{
-method:"GET",
-mode:"cors",
-cache:"no-store",
-credentials:"omit",
-headers:{
-"Accept":"application/json"
-}
-});
-
+request = await fetch(url);
 }catch(e){
 alert("network error");
 return;
@@ -555,17 +567,53 @@ alert("connection failed");
 return;
 }
 
+let text;
+
+try{
+text = await request.text();
+}catch(e){
+alert("response error");
+return;
+}
+
 let data;
 
 try{
-data = await request.json();
+data = JSON.parse(text);
 }catch(e){
 alert("json parse error");
 return;
 }
-
 return data;
+}
 
+loadRedditFeed(subreddit) {
+return new Promise((resolve, reject)=>{
+
+const url = "https://www.reddit.com/r/" + encodeURIComponent(subreddit) +
+".json?limit=" + this.feed_limit + "&raw_json=1";
+
+const xhr = new XMLHttpRequest();
+xhr.open('GET', url, true);
+xhr.responseType = 'json';
+
+xhr.onload = () => {
+if (xhr.status === 200) {
+if (xhr.response) {
+resolve(xhr.response);
+} else {
+reject("Empty response");
+}
+} else {
+reject("Status: " + xhr.status);
+}
+};
+
+xhr.onerror = () => reject("Network error");
+
+xhr.send();
+
+});
 }
 
 setFeedData(json) {
@@ -822,7 +870,6 @@ async viewPost(index) {
 await customElements.whenDefined('app-activity');
 this.loading = true;
 const post = this.feedData[index];
-this.postView= new Page();
 this.postView.id = 'postview_activity';
 openInstance(this.postView);
 const timeStamp = new Tag();
@@ -832,7 +879,7 @@ const postContent = new Text();
 const commentDetails = new Tag();
 const postWrapper = new Container();
 authorTag.slot = 'header';
-postTitle.slot = 'content:head';
+//postTitle.slot = 'content:head';
 timeStamp.slot = 'header';
 commentDetails.slot = 'label';
 postWrapper.setAttribute('layout', 'Spin-Load-Animation');
@@ -846,7 +893,7 @@ timeStamp.textContent = formatTimeAgo(post.created_utc);
 postTitle.style.fontSize = '1.5rem';
 this.postView.appendChild(authorTag);
 this.postView.appendChild(timeStamp);
-this.postView.appendChild(postTitle);
+postWrapper.appendChild(postTitle);
 
 const media = this.getPostMedia(post);
 if(media) {
@@ -2543,13 +2590,13 @@ fill:#fff;
 </flex-grid>
 
 </layout><layout part="Video-Player">
-  <video autoplay="" disabled="true"></video>
-  <audio></audio>
-  <grid-row>
+<player></player>
+<grid-row>
 <button id="playButton"><svg id="play" viewBox="0 0 24 24" slot="icon"><path d="M8.016 5.016L18.985 12 8.016 18.984V5.015z"></path></svg></button>
+</grid-row><grid-row>
 <input id="seekBar" type="range" value="0" disabled="true">
 <p id="playBackTimer">00:00 | 00:00</p>
-<button>
+<button id="fstoggle">
 <svg id="fullscreen" viewBox="0 0 512 512" slot="icon"><path d="M396.795 396.8H320V448h128V320h-51.205zm.005-281.595V192H448V64H320v51.205zm-281.595-.005H192V64H64v128h51.205zm-.005 281.595V320H64v128h128v-51.205z"></path></svg></button>
   </grid-row>
 </layout><svg id="hamburger_menu" viewBox="0 0 512 512"><path d="M64 384h384v-42.666H64V384zm0-106.666h384v-42.667H64v42.667zM64 128v42.665h384V128H64z"></path></svg>
