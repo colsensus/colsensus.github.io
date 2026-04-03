@@ -99,6 +99,16 @@ moveElement(element, parentNode) {
   return true;
 }
 
+navTo(url) {
+const context = window.location.pathname;
+if(context.endsWith('/') 
+&& context=== '/') {
+history.replaceState({ }, '' , url)
+} else {
+history.pushState({ }, '' , url)
+}
+}
+
 applyProperties(props = {}) {
     Object.keys(props).forEach(key => {
       this[key] = props[key];
@@ -541,12 +551,12 @@ class RedditClient extends baseComponent {
 
 config() {
 //this.feed = this.getAttribute('url') || 'reddit';
-this.feed = localStorage.getItem('feed') || 'odesza';
+//this.feed = localStorage.getItem('feed') || 'odesza';
+this.feed = 'nasa';
 this.feed_limit = 100;
 this.feedData = [];
 this.currentIndex = 0;
-this.layout = 'Custom-Layout';
-this.ListView = 'List-Layout';
+this.layout = 'List-Layout';
 this.lastScrollPos = 0;
 this.scrollThreshold =10;
 this.videoPlaybackResolution = '480';
@@ -554,92 +564,28 @@ this.videoPlaybackResolution = '480';
 
 init() {
 this.style.display='contents';
-this.trendTabNav = new Button();
-this.latestTabNav = new Button();
-this.omniBar = new TextField();
-this.actionButton = new Button();
-this.FeedList = new List();
-//this.homePage=openInstance(`start`);
 this.initialLoad();
 }
 
 attachListeners() {
 this.onEvent('scroll', 
-this.FeedList.shadowRoot,(e)=> {
-const part= e.target.getAttribute('part');
+this.shadowRoot,(e)=> {
+const part=e.target.getAttribute('part');
 if(!part) return;
-if(part === this.ListView) {
+if(part === this.layout) {
 const currentScroll=e.target.scrollTop;
 const prevScroll = this.lastScrollPos;
 if(currentScroll > prevScroll)  {
 if(currentScroll - prevScroll > this.scrollThreshold) {
-this.loadFeedsList();
+this.loadFeedsList();   
 }}
 this.lastScrollPos = currentScroll;
 }});
-this.omniBar.onclick = () => {
-this.omniBar.value= this.feed;
-this.omniBar.focus();
-};
 
-this.omniBar.onkeyup = () => {
-if(this.omniBar.value!=='') {
-this.feed=this.omniBar.value
-.replaceAll(' ', '');
-this.actionButton.disabled = false;
-this.actionButton.classList.add('active');
-} else {
-this.actionButton.disabled = true;
-this.actionButton.classList.remove('active');
-}}
-this.omniBar.onblur = () => {
-if(this.omniBar.value !== null) {
-this.actionButton.disabled = false;
-this.actionButton.classList.add('active');
-this.omniBar.placeholder = this.omniBar.value.replaceAll('_','');
-if(this.omniBar.value !== this.feed) {
-this.omniBar.placeholder = this.feed;
-this.showFeed('new');
-}
-} else {
-this.actionButton.disabled = true;
-this.actionButton.classList.remove('active');
-} }
-this.omniBar.onsubmit = () => {
-this.omniBar.placeholder = this.feed;
-this.showFeed('new');
-}
-this.actionButton.onclick = () => {
-this.omniBar.placeholder = this.feed;
-this.showFeed('new');
-}
-this.trendTabNav.onclick = () =>  {
-this.showFeed('hot');
-};
-this.latestTabNav.onclick = () => {
-  this.showFeed('new');
-};
 }
 
 initialLoad() {
 this.resetFeed();
-this.trendTabNav.setAttribute('slot', 'bottom:tab');
-this.latestTabNav.setAttribute('slot', 'bottom:tab');
-this.actionButton.setAttribute('slot', 'content:head');
-this.omniBar.setAttribute('slot', 'content:head');
-this.actionButton.disabled = true;
-setIcon(this.trendTabNav, 'r_trends');
-setIcon(this.latestTabNav, 'r_feeds');
-setIcon(this.actionButton, 'search');
-
-setText(this.trendTabNav, 'r_trending_tab_label');
-setText(this.latestTabNav, 'r_feed_tab_label');
-
-this.appendChild(this.omniBar);
-this.appendChild(this.actionButton);
-this.appendChild(this.latestTabNav);
-this.appendChild(this.trendTabNav);
-this.appendChild(this.FeedList);
 this.showFeed('new');
 }
 
@@ -649,20 +595,6 @@ const json =await this.loadFeed({
 sub : this.feed,
 category : tInd
 });
-this.omniBar.placeholder = String(this.feed).toUpperCase();
-this.actionButton.disabled = true;
-this.actionButton.classList.remove('active');
-if(tInd === 'new') {
-this.trendTabNav.classList.remove('active');
-this.latestTabNav.classList.add('active');
-this.trendTabNav.disabled = false;
-this.latestTabNav.disabled = true;
-} if(tInd === 'hot') {
-this.trendTabNav.classList.add('active');
-this.latestTabNav.classList.remove('active');
-this.trendTabNav.disabled = true;
-this.latestTabNav.disabled = false;  
-}
 this.setFeedData(json);
 this.loadFeedsList();
 }
@@ -670,23 +602,21 @@ this.loadFeedsList();
 async loadFeed(feedURL){
 
 const subreddit = `${feedURL.sub}/${feedURL.category}`;
-
+alert(`requesting : ${subreddit}`);
 //await customElements.whenDefined('app-activity');
 
-const url =
-"https://www.reddit.com/r/" +
-encodeURIComponent(subreddit) +
-".json?limit=" +
-this.feed_limit +
-"&raw_json=1";
+const url=`https://www.reddit.com/r/${encodeURIComponent(subreddit)}.json?limit="${this.feed_limit}"&raw_json=1`;
 
 let request;
 
 try{
-request = await fetch(url);
+request = await fetch(url, {
+method:'GET',
+headers: { 'Accept':'application/json'},
+mode: 'cors',
+cache: 'no-cache'});
 }catch(e){
-alert(`${e.message}`);
-return;
+return alert(`${e.message}`);
 }
 
 if(!request || !request.ok){
@@ -805,7 +735,7 @@ files.default_url = false;
 
 if(video.fallback_url) {
 const id = clean(video.fallback_url).split('?')[0].split('/')[3];
-const auto = `https://v.redd.it/${id}/CMAF_`;
+const auto=`https://v.redd.it/${id}/CMAF_`;
 files.auto_144=auto+LOW;
 files.auto_220=auto+SD;
 files.auto_270=auto+SDPLUS;
@@ -970,7 +900,7 @@ card.appendChild(postPreview);
 card.onclick = () => {
 this.viewPost(post.index);
 };
-this.FeedList.appendChild(card);
+this.appendChild(card);
 }
 
 async viewPost(index) {
@@ -1237,8 +1167,7 @@ onLoadState(state) {
 }
 
 resetFeed() {
-this.FeedList.innerHTML = '';
-this.omniBar.value = '';
+this.innerHTML = '';
 this.feedData = [];
 this.currentIndex = 0;
 this.loading = false;
@@ -2658,7 +2587,7 @@ grid-auto-rows: auto;
  /* justify-items:stretch;*/
   align-content:flex-start;
  align-items:stretch;
-  height:100vh;
+  height:100%;
   width: 100%;
   overflow:hidden;
   scroll-snap-type: y mandatory;
@@ -3191,6 +3120,7 @@ fill:#fff;
 <slot name="header:navigation">
 <button part="BackNavBtn" onclick="history.back()"><svg id="arrow_back" viewBox="0 0 512 512" slot="icon"><path d="M213.7 256L380.9 81.9c4.2-4.3 4.1-11.4-.2-15.8l-29.9-30.6c-4.3-4.4-11.3-4.5-15.5-.2L131.1 247.9c-2.2 2.2-3.2 5.2-3 8.1-.1 3 .9 5.9 3 8.1l204.2 212.7c4.2 4.3 11.2 4.2 15.5-.2l29.9-30.6c4.3-4.4 4.4-11.5.2-15.8L213.7 256z"></path></svg></button>
 <slot name="header:icon"></slot>
+<slot name="header:title"></slot>
 </slot>
 <slot name="header"></slot>
 <slot name="header:button"></slot>
