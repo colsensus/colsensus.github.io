@@ -554,7 +554,7 @@ onExitForeground() {
 class RedditClient extends baseComponent {
 config() {
 //this.feed = this.getAttribute('url') || 'reddit';
-this.feed = 'odesza';
+this.feed = 'kenya';
 this.feed_limit = 100;
 this.feedData = [];
 this.currentIndex = 0;
@@ -867,7 +867,7 @@ media.content = files;
 media.type = 'video';
   }
 const embed=post?.secure_media?.oembed;
-if (embed?.html) {
+if (embed?.html && media.content === null ) {
 const html=decodeHTML(embed.html);
 const container = new Div();
 container.innerHTML = html;
@@ -1041,7 +1041,7 @@ this.postView.appendChild(timeStamp);
 
 const media = this.getPostMedia(post);
 
-if( media.content || media.embed ) {
+if( media.content) {
 if (media.type === 'gallery') {
 let i = 1;
 media.content.forEach((url)=>{
@@ -1199,10 +1199,9 @@ video.appendChild(a_auto_160);
 postWrapper.appendChild(video);
 //metaInfo.appendChild(meta);
 //postWrapper.appendChild(metaInfo)
-} 
+} }
 
-if(media.embed 
-&& media?.content !== null ) {
+if(media.embed ) {
 const view = new WebView();
 view.data = media.embed;
 const li = new Paragraph();
@@ -1216,8 +1215,6 @@ view.textContent = media.provider;
 postWrapper.appendChild(view);
 meta.appendChild(li);
 metaInfo.appendChild(meta);
-}
-
 }
 
 if(post.title) {
