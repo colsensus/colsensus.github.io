@@ -63,7 +63,7 @@ this.onStateChanged?.( name, oldValue, newValue );
 
 
 disconnectedCallback() { 
-this.onExitForeground?.();
+super.onExitForeground?.();
 }
 
 adoptStyle(SRCDOM = document.head ) {
@@ -115,7 +115,12 @@ applyProperties(props = {}) {
       this[key] = props[key];
     });
   }
-  
+
+onExitForeground() {
+this.shadowRoot.innerHTML = '';
+this.innerHTML = '';
+this.remove();  
+}  
 }class UIComposer extends HTMLElement {
   constructor() {
     super();
@@ -203,10 +208,10 @@ this.audio.preload = 'auto';
 this.video.preload = 'auto'; 
 this.allowFullscreen = true;
 this.video.controls = false;
-//this.video.mute = false;
+this.video.mute = false;
 this.audio.controls = false;
 this.video.loop = false;
-//this.video.playsInline = true;
+
 this.video.disabled = true;
 this.video.controlsList = 'nodownload noplaybackrate';
 this.audio.controlsList = 'nodownload noplaybackrate';
@@ -229,12 +234,13 @@ if(this.videoIsFullscreen === true) {
 document.exitFullscreen(); 
 this.videoIsFullscreen = false;
 setIcon(this.fstoggle, 'media_fullscreen');
+this.video.playsInline = true;
   }
-if(this.videoIsFullscreen === true) {
-document.exitFullscreen(); 
+if(this.videoIsFullscreen === false) {
 this.requestFullscreen();
 this.videoIsFullscreen = true;
 setIcon(this.fstoggle, 'media_exitfullscreen');
+this.video.playsInline = false;
   }
 };
 this.muteBtn.onclick = () => {
@@ -336,14 +342,13 @@ else this.hidePlayerControls(true);
 onStateChanged(name,oldValue,newValue) {
 if(name === 'state' 
 && newValue === 'suspended') {
-this.shadowRoot.innerHTML = '';
-this.innerHTML = '';
-this.remove();
+this.pause();
+this.disconnect();
 }
 }
 
 onCreate() {
-this.autoPlayWhenReady();
+//this.autoPlayWhenReady();
 }
 autoPlayWhenReady() {
 if (this.hasBuffered(3)) {
@@ -380,10 +385,6 @@ isPlaying(el) {
 return (el.currentTime > 0 &&
 !el.paused && !el.ended && 
 el.readyState > 2 );
-}
-
-onExitForeground() {
-this.video.pause();
 }
 
 }
@@ -468,9 +469,7 @@ this.setClosedState();
 }
 
 if(newValue === 'suspended') {
- this.shadowRoot.innerHTML = '';
-this.innerHTML = '';
-this.remove();
+this.disconnect();
 } }
 
 if(name === 'title') {
@@ -482,7 +481,7 @@ navigatePageIndex(currentIndex) {
 const existingState=history.state||{};
 const newState = { ...existingState,
 page :currentIndex, modal :false }; 
-const currentURL = new URL(window.location.href);
+
 if(currentIndex !== 'main' ) { history.pushState( newState ,null, `/${currentIndex}/`) }
 
 if(currentIndex === 'main' ) { history.replaceState(newState,null,`/`) }
@@ -545,9 +544,6 @@ document.querySelector('main-view').appendChild(instance);
 return instance;
 }
 
-onExitForeground() {
-
-}
 }
 
 
@@ -562,7 +558,8 @@ this.layout = 'Custom-Layout';
 this.ListView = 'List-Layout';
 this.lastScrollPos = 0;
 this.scrollThreshold =10;
-this.videoPlaybackResolution = '480';
+this.videoResolutions = [ '144', '220', '360', '480', '720', '1080'];
+this.audioResolutions = ['64', '96', '128','164'];
 }
 
 init() {
@@ -813,54 +810,34 @@ media.preview = media.content[0];
 
 if (video?.fallback_url || video?.dash_url) {
 const files = {};
-const LOW = '144.mp4';
-const SD = '220.mp4';
-const SDPLUS ='270.mp4';
-const HQ = '360.mp4';
-const MID = '480.mp4';
-const HI = '720.mp4';
-const HD = '1080.mp4';
-const audio_64= 'AUDIO_64.mp4';
-const audio_96= 'AUDIO_96.mp4';
-const audio_128= 'AUDIO_128.mp4';
-const audio_160= 'AUDIO_160.mp4';
+const src =`https://v.redd.it/`;
+
 files.dash_url = false;
 files.default_url = false;
+files.CMAF = [];
+files.DASH = [];
 
 if(video.fallback_url) {
-const id = clean(video.fallback_url).split('?')[0].split('/')[3];
-const auto = `https://v.redd.it/${id}/CMAF_`;
-files.auto_144=auto+LOW;
-files.auto_220=auto+SD;
-files.auto_270=auto+SDPLUS;
-files.auto_360=auto+HQ;
-files.auto_480=auto+MID;
-files.auto_720=auto+HI;
-files.auto_1080=auto+HD;
-files.auto_audio_64=auto+audio_64;
-files.auto_audio_96=auto+audio_96;
-files.auto_audio_128=auto+audio_128;
-files.auto_audio_160=auto+audio_160;
-files.default_url = true;
-files.hls_pl = video.hls_url;
+const id = clean(video.fallback_url).split('/')[3];
+this.videoResolutions.forEach(res => {
+files.CMAF.push(`${src}${id}/CMAF_${res}.mp4`);
+});
+this.audioResolutions.forEach(res => {
+files.CMAF.push(`${src}${id}/CMAF_AUDIO_${res}.mp4`);
+});
+
 }
 
 if(video.dash_url) {
-const id = clean(video.dash_url).split('?')[0].split('/')[3];
-const dash = `https://v.redd.it/${id}/DASH_`;
-files.dash_144=dash+LOW;
-files.dash_220=dash+SD;
-files.dash_270=dash+SDPLUS;
-files.dash_360=dash+HQ;
-files.dash_480=dash+MID;
-files.dash_720=dash+HI;
-files.dash_1080=dash+HD;
-files.dash_audio_64=dash+audio_64;
-files.dash_audio_96=dash+audio_96;
-files.dash_audio_128=dash+audio_128;
-files.dash_audio_160=dash+audio_160;
-files.dash_url = true;
-files.dash_pl = video.dash_url;
+const id = clean(video.dash_url).split('/')[3];
+this.videoResolutions.forEach(res => {
+files.DASH.push(`${src}${id}/DASH_${res}.mp4`);
+});
+this.audioResolutions.forEach(res => {
+files.DASH.push(`${src}${id}/DASH_AUDIO_${res}.mp4`);
+});
+files.DASH.push(
+`${src}${id}/DASH_audio.mp4`);
 }
 
 media.content = files;
@@ -893,8 +870,8 @@ return media;
 }
 
 renderCommentNode(parentEl, commentData, color = '', reciepient = null ) {
-  if (!commentData?.data?.body) return;
-//if(!commentData.data.author) return; 
+if(!commentData.data.author) return; 
+if(!commentData?.data?.body) return;
 //if(commentData.data.author === 'AutoModerator') return;
 let rcolor;
 if(color) rcolor = color;
@@ -1017,7 +994,7 @@ async viewPost(index) {
 await customElements.whenDefined('app-activity');
 const post = this.feedData[index];
 const activityID = `view-post-${post.id}`;
-this.postView = openInstance(`v-post-${post.id}`);
+this.postView = openInstance(`view-${post.id}`);
 this.loading = true;
 const timeStamp = new Tag();
 const authorTag = new Tag();
@@ -1031,7 +1008,6 @@ const mediaSlider= new Carouselle();
 
 metaInfo.label = ` meta`;
 authorTag.slot = 'header';
-//postTitle.slot = 'content:head';
 timeStamp.slot = 'header:right';
 
 authorTag.textContent = post.author.toLowerCase();
@@ -1053,168 +1029,57 @@ const counter = new Div();
 counter.className = 'box';
 counter.textContent = `${increment} / ${media.content.length}`;
 image.src = url;
-const li = new Li();
-li.label = `image ${increment}`;
-li.link = url;
-//meta.appendChild(li);
 
 wrapper.appendChild(counter);
 wrapper.appendChild(image);
-//wrapper.appendChild(li);
 mediaSlider.appendChild(wrapper);
 });
-//metaInfo.appendChild(meta);
-//postWrapper.appendChild(metaInfo);
 postWrapper.appendChild(mediaSlider);
 }
 
 if(media.type === 'image') {
 const view = new Image();
 view.src= media.content;
-//const li = new Paragraph();
-//li.textContent = media.content;
-//meta.append(li);
-//mediaSlider.appendChild(view);
 postWrapper.appendChild(view);
-//postWrapper.appendChild(mediaSlider);
-//metaInfo.appendChild(meta);
-//postWrapper.appendChild(metaInfo)
-  
 }
 
-if(media.content.dash_url || media.content.default_url) {
+if(media.content.DASH 
+|| media.content.CMAF ) {
 const video = new Video();
 const image = new Image();
 video.cover = media.preview;
-let dashPlaylist, hlsPlaylist;
-//const debug =JSON.stringify(media);
-//text.innerHTML += debug;
-if(media.content.dash_url === true ) {
-const DASH_144 = new Source();
-const DASH_220 = new Source();
-const DASH_270 = new Source();
-const DASH_360 = new Source();
-const DASH_480 = new Source();
-const DASH_720 = new Source();
-const DASH_1080 = new Source();
-const a_dash_96 = new Source();
-const a_dash_64 = new Source();
-const a_dash_128 = new Source();
-const a_dash_160 = new Source();
 
-DASH_144.src=media.content.dash_144;
-DASH_220.src=media.content.dash_220;
-DASH_270.src=media.content.dash_270;
-DASH_360.src=media.content.dash_360;
-DASH_480.src=media.content.dash_480;
-DASH_360.src=media.content.dash_720;
-DASH_1080.src=media.content.dash_1080;
-
-a_dash_96.src =media.content.dash_audio_96;
-a_dash_64.src =media.content.dash_audio_64;
-a_dash_128.src =media.content.dash_audio_128;
-a_dash_160.src =media.content.dash_audio_160;
-
-
-DASH_144.type = 'video/mp4';
-DASH_220.type = 'video/mp4';
-DASH_270.type = 'video/mp4';
-DASH_360.type = 'video/mp4';
-DASH_480.type = 'video/mp4';
-DASH_720.type = 'video/mp4';
-DASH_1080.type = 'video/mp4';
-
-a_dash_64.type = 'audio/mp4';
-a_dash_96.type = 'audio/mp4';
-a_dash_128.type = 'audio/mp4';
-a_dash_160.type = 'audio/mp4';
-
-video.appendChild(DASH_480);
-video.appendChild(DASH_220);
-video.appendChild(DASH_270);
-video.appendChild(DASH_144);
-video.appendChild(DASH_360);
-video.appendChild(DASH_720);
-video.appendChild(DASH_1080);
-video.appendChild(a_dash_64);
-video.appendChild(a_dash_96);
-video.appendChild(a_dash_128);
-video.appendChild(a_dash_160);
-//fetch(media.content.dash_pl).then(res=>res.text()).then(d=>{ meta.textContent+=d;});
+if(media.content.DASH.length !== 0 ) {
+media.content.DASH.forEach(url => {
+const el = new Source();
+el.src = url;
+el.type = 'video/mp4';
+if(url.includes('DASH_AUDIO')) el.type = 'audio/mp4';
+video.appendChild(el);
+});
 }
 
-if(media.content.default_url=== true) {
-const CMAF_144 = new Source();
-const CMAF_220 = new Source();
-const CMAF_270 = new Source();
-const CMAF_360 = new Source();
-const CMAF_480 = new Source();
-const CMAF_720 = new Source();
-const CMAF_1080 = new Source();
-const a_auto_64 = new Source();
-const a_auto_96 = new Source();
-const a_auto_128 = new Source();
-const a_auto_160 = new Source();
-
-CMAF_144.src =media.content.auto_144;
-CMAF_220.src =media.content.auto_220;
-CMAF_270.src =media.content.auto_270;
-CMAF_360.src =media.content.auto_360;
-CMAF_480.src =media.content.auto_480;
-CMAF_720.src =media.content.auto_720;
-CMAF_1080.src=media.content.auto_1080;
-
-a_auto_64.src=media.content.auto_audio_64;
-a_auto_96.src=media.content.auto_audio_96;
-a_auto_128.src =media.content.auto_audio_128;
-a_auto_160.src =media.content.auto_audio_160;
-
-CMAF_144.type = 'video/mp4';
-CMAF_220.type = 'video/mp4';
-CMAF_270.type = 'video/mp4';
-CMAF_360.type = 'video/mp4';
-CMAF_480.type = 'video/mp4';
-CMAF_720.type = 'video/mp4';
-CMAF_1080.type = 'video/mp4';
-a_auto_64.type = 'audio/mp4';
-a_auto_96.type = 'audio/mp4';
-a_auto_128.type = 'audio/mp4';
-a_auto_160.type = 'audio/mp4';
-
-video.appendChild(CMAF_480);
-video.appendChild(CMAF_220);
-video.appendChild(CMAF_270);
-video.appendChild(CMAF_144);
-video.appendChild(CMAF_360);
-video.appendChild(CMAF_720);
-video.appendChild(CMAF_1080);
-video.appendChild(a_auto_64);
-video.appendChild(a_auto_96);
-video.appendChild(a_auto_128);
-video.appendChild(a_auto_160);
-
-//fetch(media.content.hls_pl).then(res=>res.text()).then(d=>{ meta.textContent +=d;});
+if(media.content.CMAF.length !== 0) {
+media.content.CMAF.forEach(url => {
+const el = new Source();
+el.src = url;
+el.type = 'video/mp4';
+if(url.includes('CMAF_AUDIO')) el.type = 'audio/mp4';
+video.appendChild(el);
+});
 }
-
 postWrapper.appendChild(video);
-//metaInfo.appendChild(meta);
-//postWrapper.appendChild(metaInfo)
 } }
 
-if(media.embed ) {
+if(media.embed) {
 const view = new WebView();
 view.data = media.embed;
-const li = new Paragraph();
-li.textContent = media.embed;
-//view.src =media.embed;
+
 view.sandbox = `allow-scripts; allow-cross-origin; allow-same-origin`;
 view.allowFullscreen = true;
 view.autoplay = 'enabled';
 view.textContent = media.provider;
-//mediaSlider.innerHTML = '';
 postWrapper.appendChild(view);
-meta.appendChild(li);
-metaInfo.appendChild(meta);
 }
 
 if(post.title) {
@@ -1225,8 +1090,8 @@ contentWrapper.appendChild(postTitle);
 }
 
 if (post.selftext) {
-const decoded =decodeHTML(post.title);
-postContent.textContent = decoded;
+const d =decodeHTML(post.selftext);
+postContent.textContent = d;
 contentWrapper.appendChild(postContent);
 }
 
@@ -2065,6 +1930,7 @@ const t = getActivity(v);
 if(!t) {
 return;
 } else setState(t,{ state :'open'});
+
 }
 
 function openInstance(id) {
@@ -2324,7 +2190,8 @@ max-width:100%;
 div {
 display:block;
 width:100%;
-height:max-content;
+height:auto;
+flex:0 1 100%;
 scroll-snap-type:y mandatory;
 }
 div-container,
@@ -2556,7 +2423,10 @@ fill:var(--base-fill-color);
 }
 slot[name="card:title"] {
 border-bottom:solid 1px grey;
-font-size: 3em;
+font-size: 3rem;
+}
+slot[name="card:action"] {
+font-size:0.75rem;  
 }
 spinner {
 display:inline-block;
@@ -2713,13 +2583,13 @@ z-index: 3;
 
 ::part(Page-Layout),
 ::part(Custom-Layout) {
-display: flex;
-justify-content:center;
-align-items:center;
-flex-direction:column;
-height:100%;
+display:flex;
+justify-content: stretch;
+align-items: stretch;
+align-content: stretch;
+flex-direction: column;
+height: 100%;
 width:100%;
-max-width: 1080px;
 } 
 
 ::part(Page-Layout) > grid-row {
@@ -2728,9 +2598,10 @@ width:100%;
 }
 
 ::part(Custom-Layout) {
-overflow:auto;
+overflow:scroll;
 height:100%;
-justify-content: center;
+align-items:stretch;
+align-content:flex-start;
 scroll-snap-type: y mandatory;
 }
 
@@ -2750,15 +2621,15 @@ box-shadow: 2px 0px 5px var(--overlay-color);
 
 ::part(main-content) {
 display:grid;
+grid-template-rows: repeat(auto, auto);
 grid-template-columns:100%;
 grid-auto-rows:auto;
-grid-auto-flow:row;
+grid-auto-flow:rows;
 height:100%;
 width:100%;
 overflow:auto;
 flex:0 1 100%;
-grid-row: span 10;
-justify-content:center;
+justify-content:stretch;
 align-items:flex-start;
 scroll-snap-type: y mandatory;
 }
