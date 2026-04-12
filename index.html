@@ -557,9 +557,9 @@ this.currentIndex = 0;
 this.layout = 'Custom-Layout';
 this.ListView = 'List-Layout';
 this.lastScrollPos = 0;
-this.scrollThreshold =10;
-this.videoResolutions = [ '144', '220', '360', '480', '720', '1080'];
-this.audioResolutions = ['64', '96', '128','164'];
+this.scrollThreshold =20;
+this.videoResolutions = [ '480','144', '220', '360', '720', '1080'];
+this.audioResolutions = ['128', '64','96','164'];
 }
 
 init() {
@@ -788,25 +788,43 @@ return comments;
 getPostMedia(post) {
   const media = {};
   const clean = u => u && u.replace(/&amp;/g, "&");
-const video = post?.reddit_video
+const images = post?.preview?.images?.[0]?.source?.url;
+const video =
+post?.crosspost_parent_list?.[0].secure_media?.reddit_video
+|| post?.crosspost_parent_list?.[0].media?.reddit_video
+|| post?.crosspost_parent_list?.[0].preview?.reddit_video
+|| post?.reddit_video
 || post?.media?.reddit_video
 || post?.preview?.reddit_video_preview;
 
-  if (post?.is_gallery && post?.media_metadata) {
+const embed=
+post?.secure_media?.oembed
+|| post?.media?.oembed 
+|| post?.crosspost_parent_list?.[0]?.media_embed?.oembed;
 
+if (images) {
+if (post?.is_gallery 
+&& post?.media_metadata) {
 media.type = "gallery";
 media.content = Object.values(post.media_metadata)
 .map(i => clean(i?.s?.u))
 .filter(Boolean);
 media.preview = media.content[0];
   }
-
-  else if (post?.preview?.images?.[0]?.source?.url) {
-
+media.preview = clean(post.preview.images?.[0].source.url);
     media.type = "image";
     media.content = clean(post.preview.images?.[0].source.url);
-    media.preview = media.content;
   }
+  
+if(post.url?.match(/\.(gif|png|jpg|jpeg|webp)$/i)) {
+if(media?.preview === '' )
+media.preview = post.url.split('?')[0];
+}
+
+if(post.url?.match(/\.(mp4|webm|webm)$/i)) {
+media.content = post.url.split('?')[0];
+media.type = 'video';
+}
 
 if (video?.fallback_url || video?.dash_url) {
 const files = {};
@@ -814,10 +832,9 @@ const src =`https://v.redd.it/`;
 
 files.dash_url = false;
 files.default_url = false;
-files.CMAF = [];
-files.DASH = [];
 
 if(video.fallback_url) {
+files.CMAF = [];
 const id = clean(video.fallback_url).split('/')[3];
 this.videoResolutions.forEach(res => {
 files.CMAF.push(`${src}${id}/CMAF_${res}.mp4`);
@@ -825,10 +842,10 @@ files.CMAF.push(`${src}${id}/CMAF_${res}.mp4`);
 this.audioResolutions.forEach(res => {
 files.CMAF.push(`${src}${id}/CMAF_AUDIO_${res}.mp4`);
 });
-
 }
 
 if(video.dash_url) {
+files.DASH = [];
 const id = clean(video.dash_url).split('/')[3];
 this.videoResolutions.forEach(res => {
 files.DASH.push(`${src}${id}/DASH_${res}.mp4`);
@@ -843,45 +860,35 @@ files.DASH.push(
 media.content = files;
 media.type = 'video';
   }
-const embed=post?.secure_media?.oembed;
-if (embed?.html && media.content === null ) {
-const html=decodeHTML(embed.html);
-const container = new Div();
-container.innerHTML = html;
-const url = container.querySelector('iframe')?.src;
-media.embed=url.split('?')[0];
+
+if ( embed?.html 
+|| embed?.content ) {
+let raw;
+if(embed.html) raw = embed.html;
+if(embed.content) raw=embed.content;
+const container = encodeHTML(raw);
+let url = container.querySelector('iframe')?.src;
+if(url.includes('?')) url=url.split('?')[0];
+media.embed= url;
 media.type = embed?.type || 'embed';
 media.provider = embed?.provider_name || this.feed ;
   }
-
-if(post.url?.match(/\.(gif|png|jpg|jpeg|webp)$/i)) {
-if(media?.preview === '' )
-media.preview = post.url.split('?')[0];
-//if(media.embed === '' 
-//|| media?.content === '')media.content=post.url.split('?')[0];
-media.type = 'image';
-}
-if(post.url?.match(/\.(mp4|webm)$/i)) {
-//if(media?.embed === '' &&
-//media.content === '') media.embed=post.url;
-media.type = 'video';
-}
 return media;
 }
 
 renderCommentNode(parentEl, commentData, color = '', reciepient = null ) {
-if(!commentData.data.author) return; 
-if(!commentData?.data?.body) return;
-//if(commentData.data.author === 'AutoModerator') return;
 let rcolor;
-if(color) rcolor = color;
-else rcolor = randomRGBA();
+
 const commentBubble = new ListCard();
 const author = new Subject();
 const comment= new Text();
+
+if(color) rcolor = color;
+else rcolor = randomRGBA();
+
 author.slot = 'card:meta';
 comment.slot = 'card:content';
-commentBubble.className = 'Column-Layout';
+author.style.textTransform = 'lowercase';
  author.textContent=commentData.data?.author || '[ deleted user ]';
 comment.textContent=commentData.data?.body || '[ comment deleted ]';
 commentBubble.appendChild(author);
@@ -895,17 +902,19 @@ const expandList =new AList();
 //const replyComment = new Card();
 let replyCount = replies.length;
 if(replyCount === 1 ) replyCount = replies[0]?.data?.author;
+
 const labelText  = `${replyCount} replied to ${commentData.data.author}`;
-expandList.label=labelText.toLowerCase();
+expandList.label=labelText;
 expandList.closedText = `hide replies to ${commentData.data.author}`;
 replies.forEach(reply => {
-if (!reply.data?.body) return;
+if (!reply.data?.body
+|| !reply.data.author) return;
 this.renderCommentNode(
 expandList,
 reply,
 rcolor,
-commentData.data.author.toLowerCase()); });
-commentBubble.appendChild(expandList);  
+commentData.data.author); });
+parentEl.appendChild(expandList);  
 }
 
 }
@@ -938,19 +947,20 @@ card.dataset.index = post.index;
 //if(post.author === '[deleted]') return;
 if(post.media) {
 const previewImg = new Image();
+const url = post.media?.preview || post.media?.content[0];
+// const ext = url.slice(url.lastIndexOf('.') + 1).toLowerCase();
+previewImg.src = url;
 previewImg.slot='card:cover';
+
 if (postType ==='gallery') {
-previewImg.src = post.media.content[0];
 providerTag.textContent = `${post.media.content.length} items`;
 card.appendChild(previewImg);
 card.appendChild(providerTag);
 }
 if (post.media.preview) {
-previewImg.src=post.media.preview;
 card.appendChild(previewImg);
 }
-if(post.media?.provider
-&& post.media?.provider !== null ) {
+if(post.media.provider) {
 providerTag.textContent = post.media.provider;
 card.appendChild(providerTag);
 }
@@ -1017,7 +1027,6 @@ this.postView.appendChild(timeStamp);
 
 const media = this.getPostMedia(post);
 
-if( media.content) {
 if (media.type === 'gallery') {
 let i = 1;
 media.content.forEach((url)=>{
@@ -1037,14 +1046,15 @@ mediaSlider.appendChild(wrapper);
 postWrapper.appendChild(mediaSlider);
 }
 
-if(media.type === 'image') {
+if(media.type === 'image'
+&& media.embed === null ) {
 const view = new Image();
 view.src= media.content;
 postWrapper.appendChild(view);
 }
 
-if(media.content.DASH 
-|| media.content.CMAF ) {
+if( media?.content?.DASH 
+|| media?.content?.CMAF) {
 const video = new Video();
 const image = new Image();
 video.cover = media.preview;
@@ -1056,8 +1066,7 @@ el.src = url;
 el.type = 'video/mp4';
 if(url.includes('DASH_AUDIO')) el.type = 'audio/mp4';
 video.appendChild(el);
-});
-}
+});}
 
 if(media.content.CMAF.length !== 0) {
 media.content.CMAF.forEach(url => {
@@ -1066,21 +1075,27 @@ el.src = url;
 el.type = 'video/mp4';
 if(url.includes('CMAF_AUDIO')) el.type = 'audio/mp4';
 video.appendChild(el);
-});
-}
-postWrapper.appendChild(video);
-} }
+});}
 
-if(media.embed) {
+postWrapper.appendChild(video);
+} 
+
+if(media.embed !== null 
+&& !media?.content?.DASH 
+&& !media?.content?.CMAF) {
 const view = new WebView();
 view.data = media.embed;
-
-view.sandbox = `allow-scripts; allow-cross-origin; allow-same-origin`;
+if(media?.preview || media?.content) {
+const thumb = new Image();
+thumb.src = media?.content || media?.preview;
+view.appendChild(thumb);
+} 
+//view.sandbox = `allow-scripts; allow-cross-origin; allow-same-origin`;
 view.allowFullscreen = true;
 view.autoplay = 'enabled';
-view.textContent = media.provider;
+view.mute = false;
 postWrapper.appendChild(view);
-}
+} 
 
 if(post.title) {
 const decoded =decodeHTML(post.title);
@@ -1099,7 +1114,6 @@ const comments=await this.getComments(post);
 
 let commentCount;
 if (post.num_comments.length === 1) commentCount = `comment`;
-if (post.num_comments.length !== 1) commentCount = `comments`;
 else commentCount = `comments`;
 const commentWrapper = new AList();
 commentWrapper.style.display = "contents";
@@ -1425,13 +1439,6 @@ function useWorker(fn, data) {
     w.postMessage(data);
   });
 }
-const presets = {
-mediaView : {
-    element: 'object',
-    width : '100%',
-    height: '100%'
-  }
-};
 function mediaCodec(base64, callback) {
   useWorker(mediaToURL,
   base64).then((res) => {
@@ -1615,8 +1622,9 @@ const textarea = document.createElement('textarea');
 textarea.innerHTML = encoded;
 return textarea.value;
 }
-function encodeHTML (decoded) {
+function encodeHTML (raw) {
 const div = new Div();
+const decoded = decodeHTML(raw);
 div.innerHTML = decoded;
 return div;
 }
@@ -1724,6 +1732,11 @@ config() {
 this.name = 'img';
 } }
 
+class Picture extends component {
+config() {
+this.name = 'picture';
+} }
+
 
 class Tag extends component {
 config() {
@@ -1742,7 +1755,8 @@ class Page extends component {
 config() {
 this.name = 'app-activity';
 this.properties = {
-instance : true
+instance : true,
+layout : 'Custom-Layout'
 } } }
 
 class Container extends component {
@@ -2163,7 +2177,9 @@ img, object, video , iframe {
   object-position: center;
 }
 object, iframe {
-display: block;
+display:flex;
+justify-content:stretch;
+align-items:center;
 min-height:66vh;
 width:100%;
 }
@@ -2682,6 +2698,7 @@ border-radius:5px;
 div-container::part(Card-Layout) {
 border:1px solid var(--overlay-color);
 box-shadow: none;
+min-width: 33vw;
 }
 
 ::part(button) > * {
@@ -3241,7 +3258,7 @@ fill:#fff;
 
 <svg id="post" viewBox="0 0 24.00 24.00"><path d="M10 5v6h11V5m-5 13h5v-6h-5M4 18h5V5H4m6 13h5v-6h-5v6z"></path></svg>
  
- <svg id="link" viewBox="0 0 24.00 24.00"><path d="M16 5.998h-3v1.9h3a4.1 4.1 0 0 1 0 8.2h-3v1.9h3a6 6 0 0 0 6-6 6 6 0 0 0-6-6zm-12.1 6a4.1 4.1 0 0 1 4.1-4.1h3v-1.9H8a6 6 0 0 0 0 12h3v-1.9H8a4.1 4.1 0 0 1-4.1-4.1zm4.1 1h8v-2H8v2z"></path></svg>
+ <svg id="embed" viewBox="0 0 24.00 24.00"><path d="M16 5.998h-3v1.9h3a4.1 4.1 0 0 1 0 8.2h-3v1.9h3a6 6 0 0 0 6-6 6 6 0 0 0-6-6zm-12.1 6a4.1 4.1 0 0 1 4.1-4.1h3v-1.9H8a6 6 0 0 0 0 12h3v-1.9H8a4.1 4.1 0 0 1-4.1-4.1zm4.1 1h8v-2H8v2z"></path></svg>
 
 <svg id="arrow_right" viewBox="0 0 512 512"><path d="M192 128l128 128-128 128z"></path></svg><string for="@framework_install_offer" en-us="install"></string>
 
