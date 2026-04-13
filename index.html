@@ -19,9 +19,9 @@ await this.applySharedPrefferences?.();
 await this.config?.();
 await this.applyConfigs?.();
  await this.init?.();
+ await this.attachListeners?.();
  await this.compose?.();
 // await super.attachListeners?.();
- await this.attachListeners?.();
  await this.onCreate?.();
 }
 applySharedPrefferences(){
@@ -636,12 +636,7 @@ this.latestTabNav.onclick = () => {
 };
 }
 
-onCreate() {
-const history = localStorage.getItem('history');
-if(history) {
-const entries = JSON.parse(history);
-this.feed = entries[0];
-}
+compose() {
 this.omniBar.className='grid-row';
 this.trendTabNav.slot='footer';
 this.latestTabNav.slot= 'footer';
@@ -653,6 +648,9 @@ setIcon(this.omniBar, 'search');
 this.actionButton.textContent='search';
 setText(this.trendTabNav, 'r_trending_tab_label');
 setText(this.latestTabNav, 'r_feed_tab_label');
+}
+
+onCreate() {
 this.omniBar.appendChild(this.searchBar);
 this.omniBar.appendChild(this.actionButton);
 this.appendChild(this.omniBar);
@@ -664,6 +662,11 @@ this.showFeed('new');
 }
 
 async showFeed(tInd) {
+const history = await localStorage.getItem('history');
+if(history) {
+const entries = JSON.parse(history);
+this.feed = entries[0];
+}
 this.resetFeed();
 this.populateSideNav(); 
 const json =await this.loadFeed({
